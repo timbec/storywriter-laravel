@@ -21,6 +21,7 @@ return [
 
     'allowed_origins' => [
         'http://localhost:8081',
+        'http://localhost:3000',
         'https://storywriter.net',
         'https://www.storywriter.net',
     ],
