@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
 
+
 class ElevenLabsController extends Controller
 {
     /**
@@ -18,7 +19,7 @@ class ElevenLabsController extends Controller
             'agentId' => 'required|string',
         ]);
 
-        $apiKey = env('ELEVENLABS_API_KEY');
+        $apiKey = env('ELEVENLABS_API_KEY', "sk_3053a56478a75a9a33e11e5bbc7fe871b4729549f8727a8a");
         if (!$apiKey) {
             return response()->json([
                 'error' => 'ELEVENLABS_API_KEY is missing in .env'

@@ -28,8 +28,8 @@ class StoryGenerationController extends Controller
             'transcript' => 'required|string',
             'options' => 'nullable|array',
         ]);
-
-        $apiKey = env('TOGETHER_API_KEY');
+        //hard coded for now
+        $apiKey = env('TOGETHER_API_KEY', "tgp_v1_QpJ-9lZgMShCFIgU2RSISouNlKccrL_s3yvoWUpcvZc");
         if (!$apiKey) {
             return response()->json([
                 'error' => 'TOGETHER_API_KEY missing in .env'
