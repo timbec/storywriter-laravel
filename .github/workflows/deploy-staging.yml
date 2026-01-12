@@ -161,7 +161,7 @@ jobs:
             php artisan view:cache
 
             echo "==> Setting permissions..."
-            chmod -R 775 storage bootstrap/cache
+            chmod -R 775 storage bootstrap/cache 2>/dev/null || true
 
             echo "==> Reloading PHP-FPM..."
             sudo /bin/systemctl reload php8.4-fpm
