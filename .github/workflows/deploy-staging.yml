@@ -14,14 +14,87 @@ env:
   APP_DIR: /var/www/storywriter-staging
 
 jobs:
-  deploy:
-    name: Deploy to Staging
+  build:
+    name: Build Application
     runs-on: ubuntu-latest
-    environment: staging
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: curl, mbstring, xml, zip, sqlite3, bcmath, intl
+          coverage: none
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Install NPM dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Create deployment artifact
+        run: |
+          mkdir -p artifact
+
+          # Copy application files
+          rsync -av --exclude='artifact' \
+            --exclude='node_modules' \
+            --exclude='.git' \
+            --exclude='tests' \
+            --exclude='.env' \
+            --exclude='storage/logs/*' \
+            --exclude='storage/framework/cache/*' \
+            --exclude='storage/framework/sessions/*' \
+            --exclude='storage/framework/views/*' \
+            . artifact/
+
+          # Create tarball with commit info in filename
+          tar -czf deployment-${{ github.sha }}.tar.gz -C artifact .
+
+          # Create a symlink for easy reference
+          ln -s deployment-${{ github.sha }}.tar.gz deployment-latest.tar.gz
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-artifact
+          path: deployment-${{ github.sha }}.tar.gz
+          retention-days: 7
+
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    needs: build
+    environment: staging
+
+    steps:
+      - name: Download deployment artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-artifact
 
       - name: Setup SSH
         run: |
@@ -30,18 +103,54 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to server
+      - name: Create backup and prepare deployment
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@${{ secrets.STAGING_HOST }} << 'PREPARE_SCRIPT'
+            set -e
+
+            APP_DIR=/var/www/storywriter-staging
+
+            # Create releases directory if it doesn't exist
+            mkdir -p /var/www/releases
+
+            # Create timestamped backup of current release
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            BACKUP_DIR="/var/www/releases/backup_${TIMESTAMP}"
+
+            if [ -d "$APP_DIR" ] && [ "$(ls -A $APP_DIR 2>/dev/null)" ]; then
+              echo "==> Creating backup at ${BACKUP_DIR}..."
+              mkdir -p "${BACKUP_DIR}"
+              cp -a $APP_DIR/. "${BACKUP_DIR}/"
+              echo "Backup created successfully"
+
+              # Keep only last 5 backups
+              cd /var/www/releases
+              ls -t | grep "^backup_" | tail -n +6 | xargs -r rm -rf
+              echo "Old backups cleaned up"
+            else
+              echo "No existing deployment to backup"
+            fi
+
+            # Prepare deployment directory
+            mkdir -p $APP_DIR
+          PREPARE_SCRIPT
+
+      - name: Copy artifact to server
+        run: |
+          scp -i ~/.ssh/deploy_key deployment-${{ github.sha }}.tar.gz \
+            deploy@${{ secrets.STAGING_HOST }}:/tmp/deployment.tar.gz
+
+      - name: Extract and activate deployment
         run: |
           ssh -i ~/.ssh/deploy_key deploy@${{ secrets.STAGING_HOST }} << 'DEPLOY_SCRIPT'
             set -e
-            cd /var/www/storywriter-staging
 
-            echo "==> Pulling latest code from develop branch..."
-            git fetch origin develop
-            git reset --hard origin/develop
+            APP_DIR=/var/www/storywriter-staging
+            cd $APP_DIR
 
-            echo "==> Installing Composer dependencies..."
-            composer install --no-dev --optimize-autoloader --no-interaction
+            echo "==> Extracting new deployment..."
+            tar -xzf /tmp/deployment.tar.gz -C $APP_DIR
+            rm /tmp/deployment.tar.gz
 
             echo "==> Running database migrations..."
             php artisan migrate --force
@@ -51,24 +160,46 @@ jobs:
             php artisan route:cache
             php artisan view:cache
 
-            echo "==> Installing npm dependencies and building assets..."
-            npm ci --production=false
-            npm run build
-
             echo "==> Setting permissions..."
             chmod -R 775 storage bootstrap/cache
 
-            echo "==> Restarting PHP-FPM..."
+            echo "==> Reloading PHP-FPM..."
             sudo /bin/systemctl reload php8.4-fpm
 
             echo "==> Deployment completed successfully!"
+            echo "Deployed commit: ${{ github.sha }}"
           DEPLOY_SCRIPT
+
+      - name: Health check
+        run: |
+          echo "==> Running health check..."
+          sleep 2
+
+          # Try to reach the application
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.STAGING_HOST }} || echo "000")
+
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]; then
+            echo "✓ Health check passed (HTTP $HTTP_CODE)"
+          else
+            echo "✗ Health check failed (HTTP $HTTP_CODE)"
+            echo "::warning::Application may not be responding correctly"
+          fi
 
       - name: Cleanup
         if: always()
         run: rm -f ~/.ssh/deploy_key
 
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "::notice::🚀 Deployment to staging successful!"
+          echo "::notice::Commit: ${{ github.sha }}"
+          echo "::notice::Branch: ${{ github.ref_name }}"
+          echo "::notice::Deployed by: ${{ github.actor }}"
+
       - name: Notify on failure
         if: failure()
         run: |
-          echo "::error::Deployment to staging failed!"
+          echo "::error::❌ Deployment to staging failed!"
+          echo "::error::Check the logs above for details"
+          echo "::error::To rollback, SSH to the server and restore from /var/www/releases/"
