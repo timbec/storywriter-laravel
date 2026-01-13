@@ -30,6 +30,11 @@ return Application::configure(basePath: dirname(__DIR__))
         'supports_credentials' => false,
         ]);
     })
+    ->withMiddleware(function (Middleware $middleware) {
+    $middleware->alias([
+        'log.story' => \App\Http\Middleware\LogStoryActivity::class,
+        ]);
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();

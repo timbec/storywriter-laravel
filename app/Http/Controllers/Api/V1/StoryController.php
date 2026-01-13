@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Services\PromptBuilder;
 use App\Http\Requests\StoreStoryRequest;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateStoryRequest;

@@ -25,6 +25,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Add your app data routes here. 
     Route::post('stories/generate', [StoryGenerationController::class, 'generate']);
     Route::post('/heartbeat', [AuthController::class, 'heartbeat']);
+
+    Route::post('/generate-story', [StoryController::class, 'generate'])->middleware('log.story');
 });
 
 
