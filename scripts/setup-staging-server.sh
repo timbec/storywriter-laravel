@@ -61,22 +61,24 @@ log_info "Step 3: Setting up environment file..."
 log_warn "You'll need to manually create the .env file on the server"
 log_info "SSH in and create: $APP_DIR/.env"
 
-# Step 4: Initial Laravel setup
-log_info "Step 4: Running initial Laravel setup..."
-ssh -i "$SSH_KEY" ubuntu@"$STAGING_HOST" << LARAVEL_SETUP
+# Step 4: Get database credentials
+log_info "Step 4: Retrieving PostgreSQL credentials..."
+ssh -i "$SSH_KEY" ubuntu@"$STAGING_HOST" << DB_CREDS
+    sudo cat /root/.db_credentials
+DB_CREDS
+
+log_warn "Copy these credentials to your .env file on the server"
+
+# Step 5: Set permissions
+log_info "Step 5: Setting permissions..."
+ssh -i "$SSH_KEY" ubuntu@"$STAGING_HOST" << SET_PERMS
     cd $APP_DIR
-
-    # Create SQLite database
-    sudo -u deploy touch database/database.sqlite
-
-    # Set permissions
-    sudo chown -R deploy:www-data storage bootstrap/cache database
+    sudo chown -R deploy:www-data storage bootstrap/cache
     sudo chmod -R 775 storage bootstrap/cache
-    sudo chmod 664 database/database.sqlite
-LARAVEL_SETUP
+SET_PERMS
 
-# Step 5: SSL Certificate
-log_info "Step 5: Setting up SSL certificate..."
+# Step 6: SSL Certificate
+log_info "Step 6: Setting up SSL certificate..."
 log_info "Make sure DNS A record for $DOMAIN_NAME points to $STAGING_HOST"
 read -p "Is DNS configured? (y/n): " DNS_READY
 
@@ -94,8 +96,9 @@ log_info "Server setup completed!"
 log_info ""
 log_info "Next steps:"
 log_info "1. SSH to server: ssh -i $SSH_KEY ubuntu@$STAGING_HOST"
-log_info "2. Create .env file: sudo -u deploy nano $APP_DIR/.env"
-log_info "3. Run: cd $APP_DIR && sudo -u deploy composer install"
-log_info "4. Run: cd $APP_DIR && sudo -u deploy php artisan key:generate"
-log_info "5. Run: cd $APP_DIR && sudo -u deploy php artisan migrate"
-log_info "6. Run: cd $APP_DIR && sudo -u deploy npm ci && npm run build"
+log_info "2. Create .env file with PostgreSQL credentials: sudo -u deploy nano $APP_DIR/.env"
+log_info "3. Get DB credentials: sudo cat /root/.db_credentials"
+log_info "4. Run: cd $APP_DIR && sudo -u deploy composer install"
+log_info "5. Run: cd $APP_DIR && sudo -u deploy php artisan key:generate"
+log_info "6. Run: cd $APP_DIR && sudo -u deploy php artisan migrate"
+log_info "7. Run: cd $APP_DIR && sudo -u deploy npm ci && npm run build"

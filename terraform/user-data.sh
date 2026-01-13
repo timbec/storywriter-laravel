@@ -25,7 +25,8 @@ apt-get install -y \
     nginx \
     certbot \
     python3-certbot-nginx \
-    sqlite3
+    postgresql \
+    postgresql-contrib
 
 # Add PHP 8.4 repository
 add-apt-repository -y ppa:ondrej/php
@@ -40,10 +41,40 @@ apt-get install -y \
     php8.4-mbstring \
     php8.4-xml \
     php8.4-zip \
-    php8.4-sqlite3 \
+    php8.4-pgsql \
     php8.4-bcmath \
     php8.4-intl \
     php8.4-readline
+
+# Configure PostgreSQL
+systemctl enable postgresql
+systemctl start postgresql
+
+# Create application database and user
+POSTGRES_PASSWORD=$(openssl rand -base64 32)
+sudo -u postgres psql << POSTGRES_SETUP
+CREATE DATABASE storywriter_staging;
+CREATE USER storywriter_app WITH ENCRYPTED PASSWORD '$POSTGRES_PASSWORD';
+GRANT ALL PRIVILEGES ON DATABASE storywriter_staging TO storywriter_app;
+\c storywriter_staging
+GRANT ALL ON SCHEMA public TO storywriter_app;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO storywriter_app;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO storywriter_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO storywriter_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO storywriter_app;
+POSTGRES_SETUP
+
+# Store database credentials for retrieval
+cat > /root/.db_credentials << DB_CREDS
+Database: storywriter_staging
+Username: storywriter_app
+Password: $POSTGRES_PASSWORD
+Host: localhost
+Port: 5432
+DB_CREDS
+chmod 600 /root/.db_credentials
+
+echo "PostgreSQL credentials stored in /root/.db_credentials"
 
 # Install Composer
 curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
@@ -140,12 +171,6 @@ mkdir -p $APP_DIR/bootstrap/cache
 chown -R deploy:www-data $APP_DIR/storage $APP_DIR/bootstrap/cache 2>/dev/null || true
 chmod -R 775 $APP_DIR/storage $APP_DIR/bootstrap/cache 2>/dev/null || true
 
-# Create SQLite database file location
-mkdir -p $APP_DIR/database
-touch $APP_DIR/database/database.sqlite 2>/dev/null || true
-chown deploy:www-data $APP_DIR/database/database.sqlite 2>/dev/null || true
-chmod 664 $APP_DIR/database/database.sqlite 2>/dev/null || true
-
 # Enable and start services
 systemctl enable php8.4-fpm
 systemctl enable nginx
@@ -156,4 +181,5 @@ echo "Provisioning completed at $(date)"
 echo "Next steps:"
 echo "1. Point DNS A record for $DOMAIN_NAME to this server's IP"
 echo "2. Run: sudo certbot --nginx -d $DOMAIN_NAME"
-echo "3. Deploy your application code"
+echo "3. Retrieve database credentials from: sudo cat /root/.db_credentials"
+echo "4. Deploy your application code"

@@ -122,7 +122,17 @@ cd /var/www/storywriter-staging
 sudo -u deploy git checkout develop
 ```
 
-### 4. Create Environment File
+### 4. Retrieve Database Credentials
+
+Retrieve the auto-generated PostgreSQL credentials:
+
+```bash
+sudo cat /root/.db_credentials
+```
+
+Copy the password - you'll need it for the `.env` file.
+
+### 5. Create Environment File
 
 ```bash
 sudo -u deploy cp .env.example .env
@@ -137,14 +147,19 @@ APP_ENV=staging
 APP_DEBUG=false
 APP_URL=https://staging-api.storywriter.net
 
-DB_CONNECTION=sqlite
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=storywriter_staging
+DB_USERNAME=storywriter_app
+DB_PASSWORD=<from /root/.db_credentials>
 
 SESSION_DRIVER=database
 CACHE_STORE=database
 QUEUE_CONNECTION=sync
 ```
 
-### 5. Initial Application Setup
+### 6. Initial Application Setup
 
 ```bash
 cd /var/www/storywriter-staging
@@ -155,13 +170,13 @@ sudo -u deploy npm ci
 sudo -u deploy npm run build
 ```
 
-### 6. SSL Certificate
+### 7. SSL Certificate
 
 ```bash
 sudo certbot --nginx -d staging-api.storywriter.net
 ```
 
-### 7. Verify Setup
+### 8. Verify Setup
 
 Visit https://staging-api.storywriter.net to verify the application is running.
 
@@ -218,6 +233,34 @@ sudo chmod -R 775 storage bootstrap/cache
 ```bash
 sudo systemctl restart php8.4-fpm
 sudo systemctl restart nginx
+```
+
+### PostgreSQL Issues
+
+Check PostgreSQL status:
+
+```bash
+sudo systemctl status postgresql
+```
+
+Test database connection:
+
+```bash
+cd /var/www/storywriter-staging
+php artisan db:show
+```
+
+View database tables:
+
+```bash
+sudo -u postgres psql -d storywriter_staging -c "\dt"
+```
+
+Check migration status:
+
+```bash
+cd /var/www/storywriter-staging
+php artisan migrate:status
 ```
 
 ## Destroying Infrastructure
