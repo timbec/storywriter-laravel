@@ -22,6 +22,9 @@ data "aws_subnet" "selected" {
   id = var.subnet_id
 }
 
+# Get current AWS account ID for least-privilege IAM policies
+data "aws_caller_identity" "current" {}
+
 # Security Group for the staging server
 resource "aws_security_group" "staging" {
   name        = "${var.app_name}-sg"
@@ -68,6 +71,86 @@ resource "aws_security_group" "staging" {
   }
 }
 
+# IAM Role for EC2 to access SSM Parameter Store
+resource "aws_iam_role" "ec2_role" {
+  name = "${var.app_name}-ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.app_name}-ec2-role"
+  }
+}
+
+# IAM Policy for SSM Parameter Store access
+resource "aws_iam_policy" "ssm_parameter_store" {
+  name        = "${var.app_name}-ssm-parameter-store"
+  description = "Allow read access to SSM Parameter Store for ${var.app_name}"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "SSMParameterStoreRead"
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameters",
+          "ssm:GetParameter",
+          "ssm:GetParametersByPath"
+        ]
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/storywriter/*"
+      },
+      {
+        Sid    = "KMSDecryptForSSMOnly"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ]
+        Resource = "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:key/*"
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "ssm.${var.aws_region}.amazonaws.com"
+          }
+          StringLike = {
+            "kms:EncryptionContext:PARAMETER_ARN" = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/storywriter/*"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.app_name}-ssm-parameter-store"
+  }
+}
+
+# Attach SSM policy to EC2 role
+resource "aws_iam_role_policy_attachment" "ssm_parameter_store" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = aws_iam_policy.ssm_parameter_store.arn
+}
+
+# IAM Instance Profile for EC2
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "${var.app_name}-ec2-profile"
+  role = aws_iam_role.ec2_role.name
+
+  tags = {
+    Name = "${var.app_name}-ec2-profile"
+  }
+}
+
 # Get latest Ubuntu 24.04 ARM64 AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -105,6 +188,7 @@ resource "aws_instance" "staging" {
   key_name               = var.key_pair_name
   subnet_id              = data.aws_subnet.selected.id
   vpc_security_group_ids = [aws_security_group.staging.id]
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
   root_block_device {
     volume_size = 20

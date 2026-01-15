@@ -27,3 +27,13 @@ output "domain_dns_record" {
   description = "Create an A record pointing to this IP"
   value       = "A record: ${var.domain_name} -> ${aws_eip.staging.public_ip}"
 }
+
+output "iam_role_arn" {
+  description = "ARN of the IAM role attached to the EC2 instance"
+  value       = aws_iam_role.ec2_role.arn
+}
+
+output "iam_instance_profile" {
+  description = "Name of the IAM instance profile"
+  value       = aws_iam_instance_profile.ec2_profile.name
+}
