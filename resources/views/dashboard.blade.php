@@ -59,7 +59,7 @@
                     <tr>
                         <td class="px-6 py-4">
                         <a href="{{ route('dashboard.story', $story->slug) }}" class="text-blue-600 hover:text-blue-800">
-                            {{ Str::limit($story->name, 50) }}
+                           <img src="{{ Str::limit($story->name, 50) }}">
                         </a>   
                         </td>
                         <td class="px-6 py-4">{{ $story->user->name }}</td>
