@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -13,12 +12,10 @@ use Illuminate\Support\Facades\Cache;
 class ElevenLabsController extends Controller
 {
     /**
-     * Create a signed session for ElevenLabs Conversational AI.
+     * Get a signed URL for ElevenLabs Conversational AI.
      *
-     * Returns a server-generated session token that can be used to track usage.
-     * The actual API calls should go through the server-side proxy endpoints.
-     *
-     * @deprecated Use the server-side proxy endpoints (tts, voices) instead of client SDK.
+     * Returns a signed WebSocket URL from ElevenLabs that the frontend can use
+     * to connect directly without exposing the API key.
      */
     public function sdkCredentials(Request $request)
     {
@@ -26,39 +23,42 @@ class ElevenLabsController extends Controller
             'agentId' => 'required|string',
         ]);
 
-        // Log deprecation warning
-        Log::warning('Deprecated endpoint /conversation/sdk-credentials called', [
-            'user_id' => $request->user()?->id,
-            'agent_id' => $request->agentId,
-            'ip' => $request->ip(),
-        ]);
-
         $apiKey = config('services.elevenlabs.api_key');
         if (!$apiKey) {
+            Log::error('ElevenLabs API key not configured', [
+                'user_id' => $request->user()?->id,
+            ]);
             return response()->json([
                 'error' => 'ELEVENLABS_API_KEY is not configured'
             ], 500);
         }
 
-        // Generate a signed session token instead of exposing the API key
-        $sessionId = (string) Str::uuid();
-        $expiresAt = now()->addMinutes(15);
-
-        // Store session server-side for validation
-        Cache::put("elevenlabs_session:{$sessionId}", [
+        // Get signed URL from ElevenLabs
+        $response = Http::withHeaders([
+            'xi-api-key' => $apiKey,
+        ])->get('https://api.elevenlabs.io/v1/convai/conversation/get_signed_url', [
             'agent_id' => $request->agentId,
-            'user_id' => $request->user()?->id,
-            'expires_at' => $expiresAt->toISOString(),
-        ], $expiresAt);
-
-        // Return session info WITHOUT the API key
-        // Clients should use server-side proxy endpoints
-        return response()->json([
-            'sessionId' => $sessionId,
-            'agentId' => $request->agentId,
-            'expiresAt' => $expiresAt->toISOString(),
-            'message' => 'Use server-side endpoints /conversation/tts and /conversation/voices. Direct SDK access is deprecated.',
         ]);
+
+        if (!$response->successful()) {
+            Log::error('Failed to get ElevenLabs signed URL', [
+                'user_id' => $request->user()?->id,
+                'agent_id' => $request->agentId,
+                'status' => $response->status(),
+                'response' => $response->json(),
+            ]);
+            return response()->json([
+                'error' => 'Failed to get signed URL from ElevenLabs',
+                'details' => $response->json(),
+            ], $response->status());
+        }
+
+        Log::info('ElevenLabs signed URL generated', [
+            'user_id' => $request->user()?->id,
+            'agent_id' => $request->agentId,
+        ]);
+
+        return response()->json($response->json());
     }
 
     /**
