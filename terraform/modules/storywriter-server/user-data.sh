@@ -146,9 +146,9 @@ useradd -m -s /bin/bash deploy || true
 usermod -aG www-data deploy
 mkdir -p /home/deploy/.ssh
 chmod 700 /home/deploy/.ssh
-cat >> /home/deploy/.ssh/authorized_keys << 'EOF'
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA32ZEbjiM/z/gsaPOGrLzBTjz9G1K7cBj3lz7R+Nt+s github-actions-deploy
-EOF
+# Copy authorized_keys from ubuntu user (AWS key pair)
+# This makes deploy user accept the same SSH key as ubuntu
+cp /home/ubuntu/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys
 chmod 600 /home/deploy/.ssh/authorized_keys
 chown -R deploy:deploy /home/deploy/.ssh
 
