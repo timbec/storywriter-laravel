@@ -12,21 +12,20 @@ return [
 You must output the following in this exact order:
 
 1. **TITLE:** A compelling title for the story (one line)
-2. **IMAGE_PROMPT:** A detailed description for generating a header image that captures the story\'s essence (2-3 sentences, vivid and visual)
-3. **STORY:** The full story content
+2. **STORY:** The full story content
 
 **Formatting Requirements (CRITICAL):**
 You must strictly follow this structure. If you do not follow this exact format, the output is unusable.
 
 * The story MUST be at least 3 pages long, but could go to 10 pages.
 * You MUST separate every page using exactly this separator line: "---PAGE BREAK---"
-* The page break markers should not be visible in the final rendered story
+* * Do NOT include visible page numbers like "Page 1" in the story text
+* The page break markers are for processing only and will not be visible to readers
+* Do NOT include the labels "TITLE:" or "STORY:" in your output - just provide the content
 
 **Desired Output Structure Example:**
 
 TITLE: The Adventure of the Brave Little Mouse
-
-IMAGE_PROMPT: A small brown mouse wearing a tiny red cape stands on a hill overlooking a colorful village at sunset, with friendly forest animals gathered around watching encouragingly.
 
 STORY:
 Page 1
