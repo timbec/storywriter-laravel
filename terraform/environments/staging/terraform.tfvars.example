@@ -1,16 +1,22 @@
-# Staging Environment Variables
-# Copy this file to terraform.tfvars and fill in your values
+# Staging Environment Variables - EXAMPLE
+# Copy this file to terraform.tfvars and fill in your actual values
 # DO NOT commit terraform.tfvars to version control
 
 aws_region         = "us-east-1"
-vpc_id             = "vpc-xxxxxxxx"
-subnet_id          = "subnet-xxxxxxxx"
-key_pair_name      = "storywriter-staging-ec2-tf"
+vpc_id             = "vpc-xxxxxxxx"           # Your VPC ID
+subnet_id          = "subnet-xxxxxxxx"        # Your public subnet ID
+key_pair_name      = "your-key-pair-name"     # EC2 key pair name
 instance_type      = "t4g.micro"
-domain_name        = "staging-api.storywriter.net"
+domain_name        = "staging-api.example.com"
 app_name           = "storywriter-staging"
-github_repo        = "https://github.com/your-username/storywriter-laravel.git"
+github_repo        = "https://github.com/yourusername/yourrepo.git"
 environment        = "staging"
 ssm_parameter_path = "/storywriter/staging"
 database_name      = "storywriter_staging"
 deploy_branch      = "develop"
+route53_zone_id    = "ZXXXXXXXXXXXXX"         # Route53 hosted zone ID
+
+# SSH Access Control
+# IMPORTANT: Replace with your specific IP addresses
+# To get your IP: curl ifconfig.me
+allowed_ssh_cidrs = ["YOUR.IP.ADDRESS/32"]

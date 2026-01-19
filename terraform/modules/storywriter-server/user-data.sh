@@ -152,8 +152,8 @@ EOF
 chmod 600 /home/deploy/.ssh/authorized_keys
 chown -R deploy:deploy /home/deploy/.ssh
 
-# Allow deploy user to restart PHP-FPM without password
-echo "deploy ALL=(ALL) NOPASSWD: /bin/systemctl reload php8.4-fpm, /bin/systemctl restart php8.4-fpm" > /etc/sudoers.d/deploy
+# Allow deploy user to restart PHP-FPM without password (least privilege)
+echo "deploy ALL=(root) NOPASSWD: /bin/systemctl reload php8.4-fpm, /bin/systemctl restart php8.4-fpm" > /etc/sudoers.d/deploy
 chmod 440 /etc/sudoers.d/deploy
 
 # Set proper permissions for application directory

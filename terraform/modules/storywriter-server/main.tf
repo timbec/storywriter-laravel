@@ -40,13 +40,13 @@ resource "aws_security_group" "server" {
   description = "Security group for ${var.app_name}"
   vpc_id      = data.aws_vpc.selected.id
 
-  # SSH access
+  # SSH access - restricted to specific IPs for security
   ingress {
-    description = "SSH"
+    description = "SSH from trusted sources"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.allowed_ssh_cidrs
   }
 
   # HTTP access
@@ -104,6 +104,14 @@ resource "aws_instance" "server" {
     volume_size = 20
     volume_type = "gp3"
     encrypted   = true
+  }
+
+  # Enforce IMDSv2 to prevent SSRF attacks
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "enabled"
   }
 
   user_data = templatefile("${path.module}/user-data.sh", {

@@ -84,6 +84,11 @@ variable "route53_zone_id" {
   type        = string
 }
 
+variable "allowed_ssh_cidrs" {
+  description = "List of CIDR blocks allowed to SSH into the server"
+  type        = list(string)
+}
+
 # Module call
 module "storywriter_server" {
   source = "../../modules/storywriter-server"
@@ -101,4 +106,5 @@ module "storywriter_server" {
   database_name      = var.database_name
   deploy_branch      = var.deploy_branch
   route53_zone_id    = var.route53_zone_id
+  allowed_ssh_cidrs  = var.allowed_ssh_cidrs
 }

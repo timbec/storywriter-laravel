@@ -1,16 +1,22 @@
-# Production Environment Variables
-# Copy this file to terraform.tfvars and fill in your values
+# Production Environment Variables - EXAMPLE
+# Copy this file to terraform.tfvars and fill in your actual values
 # DO NOT commit terraform.tfvars to version control
 
 aws_region         = "us-east-1"
-vpc_id             = "vpc-xxxxxxxx"
-subnet_id          = "subnet-xxxxxxxx"
-key_pair_name      = "storywriter-prod-ec2-tf"
+vpc_id             = "vpc-xxxxxxxx"           # Your VPC ID
+subnet_id          = "subnet-xxxxxxxx"        # Your public subnet ID
+key_pair_name      = "your-key-pair-name"     # EC2 key pair name
 instance_type      = "t4g.micro"
-domain_name        = "prod.storywriter.net"
+domain_name        = "prod.example.com"
 app_name           = "storywriter-prod"
-github_repo        = "https://github.com/your-username/storywriter-laravel.git"
+github_repo        = "https://github.com/yourusername/yourrepo.git"
 environment        = "production"
 ssm_parameter_path = "/storywriter/production"
 database_name      = "storywriter_production"
 deploy_branch      = "main"
+route53_zone_id    = "ZXXXXXXXXXXXXX"         # Route53 hosted zone ID
+
+# SSH Access Control - PRODUCTION
+# CRITICAL: Use minimal IP allowlist for production
+# Recommended: Use AWS Systems Manager Session Manager instead of SSH
+allowed_ssh_cidrs = ["YOUR.IP.ADDRESS/32"]

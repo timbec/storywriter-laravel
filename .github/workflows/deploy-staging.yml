@@ -173,16 +173,17 @@ jobs:
       - name: Health check
         run: |
           echo "==> Running health check..."
-          sleep 2
+          sleep 5
 
-          # Try to reach the application
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.STAGING_HOST }} || echo "000")
+          # Try to reach the application (use HTTPS)
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://${{ secrets.STAGING_HOST }} || echo "000")
 
           if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]; then
             echo "✓ Health check passed (HTTP $HTTP_CODE)"
           else
             echo "✗ Health check failed (HTTP $HTTP_CODE)"
-            echo "::warning::Application may not be responding correctly"
+            echo "::error::Application is not responding correctly. Deployment has failed."
+            exit 1
           fi
 
       - name: Cleanup

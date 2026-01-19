@@ -70,3 +70,13 @@ variable "route53_zone_id" {
   description = "Route 53 hosted zone ID for DNS record creation"
   type        = string
 }
+
+variable "allowed_ssh_cidrs" {
+  description = "List of CIDR blocks allowed to SSH into the server. Use specific IPs/ranges instead of 0.0.0.0/0 for security."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = length(var.allowed_ssh_cidrs) > 0
+    error_message = "You must specify at least one CIDR block for SSH access. Do not use 0.0.0.0/0 in production."
+  }
+}

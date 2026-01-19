@@ -38,7 +38,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: terraform
+        working-directory: terraform/environments/staging
 
     steps:
       - name: Checkout code

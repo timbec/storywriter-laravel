@@ -24,11 +24,39 @@ Homestead.yaml
 Thumbs.db
 repomix*
 
-# Terraform
-terraform/.terraform/
-terraform/*.tfstate
-terraform/*.tfstate.*
-terraform/*.tfvars
-terraform/tfplan
-terraform/.terraform.lock.hcl
-terraform/environments/
+# Terraform - Infrastructure as Code
+# Exclude local state and sensitive files, but keep .tf code files
+
+# Local Terraform directories (plugins, modules cache)
+**/.terraform/
+**/.terraform.lock.hcl
+
+# State files (should be in S3, not in git)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Plan files
+*.tfplan
+tfplan
+
+# Variable files with sensitive values (DO NOT COMMIT)
+terraform.tfvars
+*.auto.tfvars
+
+# Keep example variable files
+!*.tfvars.example
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Override files (local customizations)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration files
+.terraformrc
+terraform.rc
