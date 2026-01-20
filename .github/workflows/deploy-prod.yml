@@ -184,6 +184,8 @@ jobs:
           ENVEOF
 
           echo "DB_PASSWORD=${DB_PASSWORD}" >> .env
+          echo "AWS_SSM_ENABLED=true" >> .env
+          echo "AWS_DEFAULT_REGION=us-east-1" >> .env
 
           cat >> .env << 'ENVEOF'
 
