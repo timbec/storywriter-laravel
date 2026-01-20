@@ -169,12 +169,6 @@ chown -R deploy:deploy /home/deploy/.ssh
 echo "deploy ALL=(root) NOPASSWD: /bin/systemctl reload php8.4-fpm, /bin/systemctl restart php8.4-fpm" > /etc/sudoers.d/deploy
 chmod 440 /etc/sudoers.d/deploy
 
-# Set proper permissions for application directory
-chown -R deploy:www-data $APP_DIR
-chown -R deploy:www-data /var/www/releases
-chmod -R 775 $APP_DIR
-chmod 755 /var/www/releases
-
 # Create storage directories that Laravel needs
 mkdir -p $APP_DIR/storage/app/public
 mkdir -p $APP_DIR/storage/framework/cache
@@ -183,9 +177,11 @@ mkdir -p $APP_DIR/storage/framework/views
 mkdir -p $APP_DIR/storage/logs
 mkdir -p $APP_DIR/bootstrap/cache
 
-# Set storage permissions
-chown -R deploy:www-data $APP_DIR/storage $APP_DIR/bootstrap/cache 2>/dev/null || true
-chmod -R 775 $APP_DIR/storage $APP_DIR/bootstrap/cache 2>/dev/null || true
+# Set proper permissions for application directory (after creating directories)
+chown -R deploy:www-data $APP_DIR
+chown -R deploy:www-data /var/www/releases
+chmod -R 775 $APP_DIR
+chmod 755 /var/www/releases
 
 # Enable and start services
 systemctl enable php8.4-fpm
