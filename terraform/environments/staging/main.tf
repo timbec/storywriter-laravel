@@ -89,6 +89,11 @@ variable "allowed_ssh_cidrs" {
   type        = list(string)
 }
 
+variable "admin_email" {
+  description = "Email address for Let's Encrypt SSL certificate notifications"
+  type        = string
+}
+
 # Module call
 module "storywriter_server" {
   source = "../../modules/storywriter-server"
@@ -107,4 +112,5 @@ module "storywriter_server" {
   deploy_branch      = var.deploy_branch
   route53_zone_id    = var.route53_zone_id
   allowed_ssh_cidrs  = var.allowed_ssh_cidrs
+  admin_email        = var.admin_email
 }

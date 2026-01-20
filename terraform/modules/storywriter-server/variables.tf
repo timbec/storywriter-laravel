@@ -80,3 +80,8 @@ variable "allowed_ssh_cidrs" {
     error_message = "You must specify at least one CIDR block for SSH access. Do not use 0.0.0.0/0 in production."
   }
 }
+
+variable "admin_email" {
+  description = "Email address for Let's Encrypt SSL certificate notifications"
+  type        = string
+}

@@ -154,6 +154,17 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 
+# Set up SSL certificate with Let's Encrypt
+echo "==> Setting up SSL certificate for $DOMAIN_NAME..."
+certbot --nginx \
+  -d $DOMAIN_NAME \
+  --non-interactive \
+  --agree-tos \
+  --email ${admin_email} \
+  --redirect
+
+echo "SSL certificate installed successfully"
+
 # Create deploy user for GitHub Actions
 useradd -m -s /bin/bash deploy || true
 usermod -aG www-data deploy

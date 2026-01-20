@@ -120,6 +120,7 @@ resource "aws_instance" "server" {
     github_repo   = var.github_repo
     database_name = var.database_name
     deploy_branch = var.deploy_branch
+    admin_email   = var.admin_email
   })
 
   tags = {
