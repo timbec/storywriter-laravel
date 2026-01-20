@@ -88,9 +88,7 @@ jobs:
     name: Deploy to Server
     runs-on: ubuntu-latest
     needs: build
-    environment:
-      name: production
-      url: https://prod.storywriter.net
+    environment: production
 
     steps:
       - name: Download deployment artifact
@@ -145,31 +143,93 @@ jobs:
       - name: Extract and activate deployment
         run: |
           ssh -i ~/.ssh/deploy_key deploy@${{ secrets.PRODUCTION_HOST }} << 'DEPLOY_SCRIPT'
-            set -e
+          set -e
 
-            APP_DIR=/var/www/storywriter-prod
-            cd $APP_DIR
+          APP_DIR=/var/www/storywriter-prod
+          cd $APP_DIR
 
-            echo "==> Extracting new deployment..."
-            tar -xzf /tmp/deployment.tar.gz -C $APP_DIR
-            rm /tmp/deployment.tar.gz
+          echo "==> Extracting new deployment..."
+          tar -xzf /tmp/deployment.tar.gz -C $APP_DIR
+          rm /tmp/deployment.tar.gz
 
-            echo "==> Running database migrations..."
-            php artisan migrate --force
+          echo "==> Configuring environment..."
+          DB_PASSWORD=$(sudo grep "Password:" /root/.db_credentials | awk '{print $2}')
 
-            echo "==> Clearing and rebuilding caches..."
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
+          cat > .env << 'ENVEOF'
+          APP_NAME=StoryWriter
+          APP_ENV=production
+          APP_KEY=${{ secrets.APP_KEY }}
+          APP_DEBUG=false
+          APP_TIMEZONE=UTC
+          APP_URL=https://${{ secrets.PRODUCTION_HOST }}
 
-            echo "==> Setting permissions..."
-            chmod -R 775 storage bootstrap/cache 2>/dev/null || true
+          APP_LOCALE=en
+          APP_FALLBACK_LOCALE=en
+          APP_FAKER_LOCALE=en_US
 
-            echo "==> Reloading PHP-FPM..."
-            sudo /bin/systemctl reload php8.4-fpm
+          APP_MAINTENANCE_DRIVER=file
 
-            echo "==> Deployment completed successfully!"
-            echo "Deployed commit: ${{ github.sha }}"
+          BCRYPT_ROUNDS=12
+
+          LOG_CHANNEL=stack
+          LOG_STACK=single
+          LOG_DEPRECATIONS_CHANNEL=null
+          LOG_LEVEL=error
+
+          DB_CONNECTION=pgsql
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_DATABASE=storywriter_prod
+          DB_USERNAME=storywriter_app
+          ENVEOF
+
+          echo "DB_PASSWORD=${DB_PASSWORD}" >> .env
+
+          cat >> .env << 'ENVEOF'
+
+          SESSION_DRIVER=database
+          SESSION_LIFETIME=120
+          SESSION_ENCRYPT=false
+          SESSION_PATH=/
+          SESSION_DOMAIN=null
+
+          BROADCAST_CONNECTION=log
+          FILESYSTEM_DISK=local
+          QUEUE_CONNECTION=database
+
+          CACHE_STORE=database
+          CACHE_PREFIX=
+
+          MEMCACHED_HOST=127.0.0.1
+
+          REDIS_CLIENT=phpredis
+          REDIS_HOST=127.0.0.1
+          REDIS_PASSWORD=null
+          REDIS_PORT=6379
+
+          MAIL_MAILER=log
+          MAIL_FROM_ADDRESS="hello@example.com"
+          MAIL_FROM_NAME="${APP_NAME}"
+
+          VITE_APP_NAME="${APP_NAME}"
+          ENVEOF
+
+          echo "==> Running database migrations..."
+          php artisan migrate --force
+
+          echo "==> Clearing and rebuilding caches..."
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
+
+          echo "==> Setting permissions..."
+          chmod -R 775 storage bootstrap/cache 2>/dev/null || true
+
+          echo "==> Reloading PHP-FPM..."
+          sudo /bin/systemctl reload php8.4-fpm
+
+          echo "==> Deployment completed successfully!"
+          echo "Deployed commit: ${{ github.sha }}"
           DEPLOY_SCRIPT
 
       - name: Health check
