@@ -170,9 +170,10 @@ useradd -m -s /bin/bash deploy || true
 usermod -aG www-data deploy
 mkdir -p /home/deploy/.ssh
 chmod 700 /home/deploy/.ssh
-# Copy authorized_keys from ubuntu user (AWS key pair)
-# This makes deploy user accept the same SSH key as ubuntu
-cp /home/ubuntu/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys
+
+# Add the deploy SSH key (used by both GitHub Actions and manual SSH)
+echo "${github_actions_public_key}" > /home/deploy/.ssh/authorized_keys
+
 chmod 600 /home/deploy/.ssh/authorized_keys
 chown -R deploy:deploy /home/deploy/.ssh
 

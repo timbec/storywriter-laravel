@@ -115,12 +115,13 @@ resource "aws_instance" "server" {
   }
 
   user_data = templatefile("${path.module}/user-data.sh", {
-    domain_name   = var.domain_name
-    app_name      = var.app_name
-    github_repo   = var.github_repo
-    database_name = var.database_name
-    deploy_branch = var.deploy_branch
-    admin_email   = var.admin_email
+    domain_name              = var.domain_name
+    app_name                 = var.app_name
+    github_repo              = var.github_repo
+    database_name            = var.database_name
+    deploy_branch            = var.deploy_branch
+    admin_email              = var.admin_email
+    github_actions_public_key = var.github_actions_public_key
   })
 
   tags = {

@@ -85,3 +85,8 @@ variable "admin_email" {
   description = "Email address for Let's Encrypt SSL certificate notifications"
   type        = string
 }
+
+variable "github_actions_public_key" {
+  description = "Public SSH key for deploy user. Used by GitHub Actions and manual SSH. Corresponds to GitHub Secret: SSH_PRIVATE_KEY"
+  type        = string
+}

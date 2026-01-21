@@ -20,3 +20,12 @@ route53_zone_id    = "ZXXXXXXXXXXXXX"         # Route53 hosted zone ID
 # IMPORTANT: Replace with your specific IP addresses
 # To get your IP: curl ifconfig.me
 allowed_ssh_cidrs = ["YOUR.IP.ADDRESS/32"]
+
+# Admin contact for SSL certificate notifications
+admin_email = "admin@example.com"
+
+# Deploy SSH Key (public key only - safe to commit)
+# This is the PUBLIC key corresponding to the private key in GitHub Secrets: SSH_PRIVATE_KEY
+# Used by both GitHub Actions deployments and your manual SSH access
+# To get the public key from your private key: ssh-keygen -y -f path/to/private/key
+github_actions_public_key = "ssh-ed25519 AAAAC3... your-deploy-public-key"

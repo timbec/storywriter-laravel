@@ -94,23 +94,29 @@ variable "admin_email" {
   type        = string
 }
 
+variable "github_actions_public_key" {
+  description = "Public SSH key for GitHub Actions deploy user"
+  type        = string
+}
+
 # Module call
 module "storywriter_server" {
   source = "../../modules/storywriter-server"
 
-  aws_region         = var.aws_region
-  vpc_id             = var.vpc_id
-  subnet_id          = var.subnet_id
-  key_pair_name      = var.key_pair_name
-  instance_type      = var.instance_type
-  domain_name        = var.domain_name
-  app_name           = var.app_name
-  github_repo        = var.github_repo
-  environment        = var.environment
-  ssm_parameter_path = var.ssm_parameter_path
-  database_name      = var.database_name
-  deploy_branch      = var.deploy_branch
-  route53_zone_id    = var.route53_zone_id
-  allowed_ssh_cidrs  = var.allowed_ssh_cidrs
-  admin_email        = var.admin_email
+  aws_region                = var.aws_region
+  vpc_id                    = var.vpc_id
+  subnet_id                 = var.subnet_id
+  key_pair_name             = var.key_pair_name
+  instance_type             = var.instance_type
+  domain_name               = var.domain_name
+  app_name                  = var.app_name
+  github_repo               = var.github_repo
+  environment               = var.environment
+  ssm_parameter_path        = var.ssm_parameter_path
+  database_name             = var.database_name
+  deploy_branch             = var.deploy_branch
+  route53_zone_id           = var.route53_zone_id
+  allowed_ssh_cidrs         = var.allowed_ssh_cidrs
+  admin_email               = var.admin_email
+  github_actions_public_key = var.github_actions_public_key
 }
