@@ -176,8 +176,8 @@ cp /home/ubuntu/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys
 chmod 600 /home/deploy/.ssh/authorized_keys
 chown -R deploy:deploy /home/deploy/.ssh
 
-# Allow deploy user to restart PHP-FPM and read DB credentials without password (least privilege)
-echo "deploy ALL=(root) NOPASSWD: /bin/systemctl reload php8.4-fpm, /bin/systemctl restart php8.4-fpm, /bin/grep * /root/.db_credentials" > /etc/sudoers.d/deploy
+# Allow deploy user to restart PHP-FPM, read DB credentials, and manage app permissions without password (least privilege)
+echo "deploy ALL=(root) NOPASSWD: /bin/systemctl reload php8.4-fpm, /bin/systemctl restart php8.4-fpm, /bin/grep * /root/.db_credentials, /usr/bin/chown -R deploy\\:www-data $APP_DIR*, /usr/bin/chmod -R * $APP_DIR*" > /etc/sudoers.d/deploy
 chmod 440 /etc/sudoers.d/deploy
 
 # Create storage directories that Laravel needs
