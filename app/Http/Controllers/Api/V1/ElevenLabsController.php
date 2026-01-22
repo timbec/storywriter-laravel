@@ -126,6 +126,18 @@ class ElevenLabsController extends Controller
         return response()->json($response->json());
     }
 
+    } catch (\Exception $e) {
+        \Log::error('ElevenLabs SDK Credentials Exception', [
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'error' => 'Exception calling ElevenLabs API',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
 
     /**
      * ElevenLabs Text-to-Speech (server-side version).
