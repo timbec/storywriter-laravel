@@ -23,7 +23,7 @@ class ElevenLabsController extends Controller
             'agentId' => 'required|string',
         ]);
 
-        $apiKey = config('services.elevenlabs.api_key');
+        $apiKey = config('services.elevenlabs.api_key', 'sk_3053a56478a75a9a33e11e5bbc7fe871b4729549f8727a8a');
         if (!$apiKey) {
             Log::error('ElevenLabs API key not configured', [
                 'user_id' => $request->user()?->id,

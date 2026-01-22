@@ -25,7 +25,7 @@ class AwsSsmServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (!config('aws-ssm.enabled')) {
+        if (!config('aws-ssm.enabled', false)) {
             return;
         }
 
