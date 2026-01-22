@@ -38,8 +38,10 @@ Route::prefix('v1')->group(function() {
     Route::apiResource('/stories', StoryController::class );
 });
 
-Route::prefix('conversation')->group(function () {
-    Route::post('/sdk-credentials', [ElevenLabsController::class, 'sdkCredentials']);
+// ElevenLabs conversation endpoints - require authentication
+Route::prefix('conversation')->middleware('auth:sanctum')->group(function () {
+    Route::post('/sdk-credentials', [ElevenLabsController::class, 'sdkCredentials']); // Deprecated
+    Route::post('/proxy', [ElevenLabsController::class, 'conversationProxy']);
     Route::post('/tts', [ElevenLabsController::class, 'textToSpeech']);
     Route::get('/voices', [ElevenLabsController::class, 'voices']);
 });

@@ -1,17 +1,17 @@
-name: Deploy to Staging
+name: Deploy to Production
 
 on:
   push:
     branches:
-      - develop
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: staging-deployment
+  group: prod-deployment
   cancel-in-progress: false
 
 env:
-  APP_DIR: /var/www/storywriter-staging
+  APP_DIR: /var/www/storywriter-prod
 
 jobs:
   build:
@@ -88,7 +88,7 @@ jobs:
     name: Deploy to Server
     runs-on: ubuntu-latest
     needs: build
-    environment: staging
+    environment: production
 
     steps:
       - name: Download deployment artifact
@@ -101,14 +101,14 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.PRODUCTION_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create backup and prepare deployment
         run: |
-          ssh -i ~/.ssh/deploy_key deploy@${{ secrets.STAGING_HOST }} << 'PREPARE_SCRIPT'
+          ssh -i ~/.ssh/deploy_key deploy@${{ secrets.PRODUCTION_HOST }} << 'PREPARE_SCRIPT'
             set -e
 
-            APP_DIR=/var/www/storywriter-staging
+            APP_DIR=/var/www/storywriter-prod
 
             # Create releases directory if it doesn't exist
             mkdir -p /var/www/releases
@@ -138,14 +138,14 @@ jobs:
       - name: Copy artifact to server
         run: |
           scp -i ~/.ssh/deploy_key deployment-${{ github.sha }}.tar.gz \
-            deploy@${{ secrets.STAGING_HOST }}:/tmp/deployment.tar.gz
+            deploy@${{ secrets.PRODUCTION_HOST }}:/tmp/deployment.tar.gz
 
       - name: Extract and activate deployment
         run: |
-          ssh -i ~/.ssh/deploy_key deploy@${{ secrets.STAGING_HOST }} << 'DEPLOY_SCRIPT'
+          ssh -i ~/.ssh/deploy_key deploy@${{ secrets.PRODUCTION_HOST }} << 'DEPLOY_SCRIPT'
           set -e
 
-          APP_DIR=/var/www/storywriter-staging
+          APP_DIR=/var/www/storywriter-prod
           cd $APP_DIR
 
           echo "==> Extracting new deployment..."
@@ -157,11 +157,11 @@ jobs:
 
           cat > .env << 'ENVEOF'
           APP_NAME=StoryWriter
-          APP_ENV=staging
+          APP_ENV=production
           APP_KEY=${{ secrets.APP_KEY }}
           APP_DEBUG=false
           APP_TIMEZONE=UTC
-          APP_URL=https://${{ secrets.STAGING_HOST }}
+          APP_URL=https://${{ secrets.PRODUCTION_HOST }}
 
           APP_LOCALE=en
           APP_FALLBACK_LOCALE=en
@@ -179,7 +179,7 @@ jobs:
           DB_CONNECTION=pgsql
           DB_HOST=localhost
           DB_PORT=5432
-          DB_DATABASE=storywriter_staging
+          DB_DATABASE=storywriter_production
           DB_USERNAME=storywriter_app
           ENVEOF
 
@@ -242,7 +242,7 @@ jobs:
           sleep 5
 
           # Try to reach the application via HTTPS
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://${{ secrets.STAGING_HOST }} || echo "000")
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://${{ secrets.PRODUCTION_HOST }} || echo "000")
 
           if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]; then
             echo "✓ Health check passed (HTTP $HTTP_CODE)"
@@ -259,7 +259,7 @@ jobs:
       - name: Deployment summary
         if: success()
         run: |
-          echo "::notice::🚀 Deployment to staging successful!"
+          echo "::notice::🚀 Deployment to production successful!"
           echo "::notice::Commit: ${{ github.sha }}"
           echo "::notice::Branch: ${{ github.ref_name }}"
           echo "::notice::Deployed by: ${{ github.actor }}"
@@ -267,6 +267,6 @@ jobs:
       - name: Notify on failure
         if: failure()
         run: |
-          echo "::error::❌ Deployment to staging failed!"
+          echo "::error::❌ Deployment to production failed!"
           echo "::error::Check the logs above for details"
           echo "::error::To rollback, SSH to the server and restore from /var/www/releases/"

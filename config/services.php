@@ -35,4 +35,32 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | ElevenLabs Text-to-Speech
+    |--------------------------------------------------------------------------
+    |
+    | API key for ElevenLabs TTS service. In staging/production, this is
+    | loaded from AWS SSM Parameter Store. Falls back to .env for local dev.
+    |
+    */
+
+    'elevenlabs' => [
+        'api_key' => env('ELEVENLABS_API_KEY'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Together AI
+    |--------------------------------------------------------------------------
+    |
+    | API key for Together AI (LLM and image generation). In staging/production,
+    | this is loaded from AWS SSM Parameter Store. Falls back to .env for local dev.
+    |
+    */
+
+    'together' => [
+        'api_key' => env('TOGETHER_API_KEY'),
+    ],
+
 ];

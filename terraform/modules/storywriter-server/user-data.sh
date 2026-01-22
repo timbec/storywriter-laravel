@@ -9,6 +9,8 @@ echo "Starting provisioning at $(date)"
 DOMAIN_NAME="${domain_name}"
 APP_NAME="${app_name}"
 GITHUB_REPO="${github_repo}"
+DATABASE_NAME="${database_name}"
+DEPLOY_BRANCH="${deploy_branch}"
 APP_DIR="/var/www/$APP_NAME"
 
 # Update system
@@ -53,10 +55,10 @@ systemctl start postgresql
 # Create application database and user
 POSTGRES_PASSWORD=$(openssl rand -base64 32)
 sudo -u postgres psql << POSTGRES_SETUP
-CREATE DATABASE storywriter_staging;
+CREATE DATABASE $DATABASE_NAME;
 CREATE USER storywriter_app WITH ENCRYPTED PASSWORD '$POSTGRES_PASSWORD';
-GRANT ALL PRIVILEGES ON DATABASE storywriter_staging TO storywriter_app;
-\c storywriter_staging
+GRANT ALL PRIVILEGES ON DATABASE $DATABASE_NAME TO storywriter_app;
+\c $DATABASE_NAME
 GRANT ALL ON SCHEMA public TO storywriter_app;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO storywriter_app;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO storywriter_app;
@@ -66,18 +68,32 @@ POSTGRES_SETUP
 
 # Store database credentials for retrieval
 cat > /root/.db_credentials << DB_CREDS
-Database: storywriter_staging
+Database: $DATABASE_NAME
 Username: storywriter_app
 Password: $POSTGRES_PASSWORD
 Host: localhost
 Port: 5432
+Deploy Branch: $DEPLOY_BRANCH
 DB_CREDS
 chmod 600 /root/.db_credentials
 
 echo "PostgreSQL credentials stored in /root/.db_credentials"
 
-# Install Composer
-curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# Install Composer (set HOME to avoid warnings)
+export HOME=/root
+EXPECTED_CHECKSUM="$(curl -sS https://composer.github.io/installer.sig)"
+php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
+
+if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+    echo "ERROR: Invalid Composer installer checksum"
+    rm composer-setup.php
+    exit 1
+fi
+
+php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+rm composer-setup.php
+echo "Composer installed successfully"
 
 # Install Node.js 20 LTS
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -109,7 +125,7 @@ server {
     charset utf-8;
 
     location / {
-        try_files $uri $uri/ /index.php?$query_string;
+        try_files \$uri \$uri/ /index.php?\$query_string;
     }
 
     location = /favicon.ico { access_log off; log_not_found off; }
@@ -117,9 +133,9 @@ server {
 
     error_page 404 /index.php;
 
-    location ~ \.php$ {
+    location ~ \.php\$ {
         fastcgi_pass unix:/var/run/php/php8.4-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         include fastcgi_params;
         fastcgi_hide_header X-Powered-By;
     }
@@ -138,26 +154,39 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 
+# Set up SSL certificate with Let's Encrypt
+echo "==> Setting up SSL certificate for $DOMAIN_NAME..."
+certbot --nginx \
+  -d $DOMAIN_NAME \
+  --non-interactive \
+  --agree-tos \
+  --email ${admin_email} \
+  --redirect
+
+echo "SSL certificate installed successfully"
+
 # Create deploy user for GitHub Actions
 useradd -m -s /bin/bash deploy || true
 usermod -aG www-data deploy
 mkdir -p /home/deploy/.ssh
 chmod 700 /home/deploy/.ssh
-cat >> /home/deploy/.ssh/authorized_keys << 'EOF'
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA32ZEbjiM/z/gsaPOGrLzBTjz9G1K7cBj3lz7R+Nt+s github-actions-deploy
-EOF
+
+# Add the deploy SSH key (used by both GitHub Actions and manual SSH)
+echo "${github_actions_public_key}" > /home/deploy/.ssh/authorized_keys
+
 chmod 600 /home/deploy/.ssh/authorized_keys
 chown -R deploy:deploy /home/deploy/.ssh
 
-# Allow deploy user to restart PHP-FPM without password
-echo "deploy ALL=(ALL) NOPASSWD: /bin/systemctl reload php8.4-fpm, /bin/systemctl restart php8.4-fpm" > /etc/sudoers.d/deploy
+# Allow deploy user to restart PHP-FPM, read DB credentials, and manage app permissions without password (least privilege)
+cat > /etc/sudoers.d/deploy << 'SUDOERS_EOF'
+deploy ALL=(root) NOPASSWD: /bin/systemctl reload php8.4-fpm
+deploy ALL=(root) NOPASSWD: /bin/systemctl restart php8.4-fpm
+deploy ALL=(root) NOPASSWD: /bin/grep * /root/.db_credentials
+deploy ALL=(root) NOPASSWD: /usr/bin/chown -R deploy\:www-data /var/www/*
+deploy ALL=(root) NOPASSWD: /usr/bin/chmod -R [0-9][0-9][0-9] /var/www/*/storage*
+deploy ALL=(root) NOPASSWD: /usr/bin/chmod -R [0-9][0-9][0-9] /var/www/*/bootstrap/cache*
+SUDOERS_EOF
 chmod 440 /etc/sudoers.d/deploy
-
-# Set proper permissions for application directory
-chown -R deploy:www-data $APP_DIR
-chown -R deploy:www-data /var/www/releases
-chmod -R 775 $APP_DIR
-chmod 755 /var/www/releases
 
 # Create storage directories that Laravel needs
 mkdir -p $APP_DIR/storage/app/public
@@ -167,9 +196,11 @@ mkdir -p $APP_DIR/storage/framework/views
 mkdir -p $APP_DIR/storage/logs
 mkdir -p $APP_DIR/bootstrap/cache
 
-# Set storage permissions
-chown -R deploy:www-data $APP_DIR/storage $APP_DIR/bootstrap/cache 2>/dev/null || true
-chmod -R 775 $APP_DIR/storage $APP_DIR/bootstrap/cache 2>/dev/null || true
+# Set proper permissions for application directory (after creating directories)
+chown -R deploy:www-data $APP_DIR
+chown -R deploy:www-data /var/www/releases
+chmod -R 775 $APP_DIR
+chmod 755 /var/www/releases
 
 # Enable and start services
 systemctl enable php8.4-fpm
@@ -178,8 +209,10 @@ systemctl restart php8.4-fpm
 systemctl restart nginx
 
 echo "Provisioning completed at $(date)"
+echo "Environment: $APP_NAME"
+echo "Deploy Branch: $DEPLOY_BRANCH"
 echo "Next steps:"
 echo "1. Point DNS A record for $DOMAIN_NAME to this server's IP"
 echo "2. Run: sudo certbot --nginx -d $DOMAIN_NAME"
 echo "3. Retrieve database credentials from: sudo cat /root/.db_credentials"
-echo "4. Deploy your application code"
+echo "4. Deploy your application code from the '$DEPLOY_BRANCH' branch"
