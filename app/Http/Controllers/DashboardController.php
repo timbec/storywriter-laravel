@@ -16,9 +16,9 @@ class DashboardController extends Controller
 
     public function index()
     {
-        
+
        // Security Check
-        if (auth()->user()->email !== 'timothybenjaminbeckett@gmail.com') { 
+        if (!auth()->user()->isAdmin()) {
             abort(403, 'Access Denied: Admins Only');
         }
 
@@ -53,7 +53,7 @@ class DashboardController extends Controller
      public function analytics()
     {
         // Security Check
-        if (auth()->user()->email !== 'timothybenjaminbeckett@gmail.com') { 
+        if (!auth()->user()->isAdmin()) {
             abort(403, 'Access Denied: Admins Only');
         }
 
