@@ -34,8 +34,8 @@ Route::middleware('auth:sanctum')->group(function () {
 //     return $request->user();
 // })->middleware('auth:sanctum');
 
-Route::prefix('v1')->group(function() {
-    Route::apiResource('/stories', StoryController::class );
+Route::prefix('v1')->middleware('auth:sanctum')->group(function() {
+    Route::apiResource('/stories', StoryController::class);
 });
 
 // ElevenLabs conversation endpoints - require authentication

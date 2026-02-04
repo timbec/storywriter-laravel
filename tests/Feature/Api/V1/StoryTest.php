@@ -3,53 +3,61 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Models\Story;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class StoryTest extends TestCase
 {
-    use RefreshDatabase; 
+    use RefreshDatabase;
 
-    public function test_user_can_get_list_of_stories(): void 
+    public function test_user_can_get_list_of_stories(): void
     {
-        //Arrange: create 2 fake stories
-        $stories = Story::factory()->count(2)->create(); 
+        // Arrange: create a user with 2 stories, and 1 story for another user
+        $user = User::factory()->create();
+        Story::factory()->count(2)->for($user)->create();
+        Story::factory()->for(User::factory()->create())->create();
 
-        //Act 
-        $response = $this->getJson('/api/v1/stories'); 
+        Sanctum::actingAs($user);
 
-        //Assert: status is 200 OK and data has 2 items
-        $response->assertOk(); 
+        // Act
+        $response = $this->getJson('/api/v1/stories');
+
+        // Assert: only the authenticated user's 2 stories are returned
+        $response->assertOk();
         $response->assertJsonCount(2, 'data');
         $response->assertJsonStructure([
             'data' => [
-                ['id', 'name', 'body']
+                ['id', 'name', 'slug', 'body', 'prompt', 'user_id', 'created_at', 'updated_at']
             ]
         ]);
     }
 
-    public function test_user_can_get_single_story(): void 
+    public function test_user_can_get_single_story(): void
     {
+        // Arrange: create a user and one story
+        $user = User::factory()->create();
+        $story = Story::factory()->for($user)->create();
 
-        //Arrange: create a story
-        $story = Story::factory()->create(); 
+        Sanctum::actingAs($user);
 
-        //Act: Make a GET request to the endpoing with task ID
-        $response = $this->getJson('/api/v1/stories/' . $story->id); 
+        // Act: GET by slug (route key)
+        $response = $this->getJson('/api/v1/stories/' . $story->slug);
 
-        // Assert: response contains the correct story data 
-        $response->assertOk(); 
-        // dd($response->json());
+        // Assert: 200 with the full resource shape and correct values
+        $response->assertOk();
         $response->assertJsonStructure([
-            'data' => ['id', 'name', 'body']
+            'data' => ['id', 'name', 'slug', 'body', 'prompt', 'user_id', 'created_at', 'updated_at']
         ]);
         $response->assertJson([
             'data' => [
-                'id' => $story->id, 
-                'name' => $story->name,
-                'body' => $story->body,
+                'id'      => $story->id,
+                'name'    => $story->name,
+                'slug'    => $story->slug,
+                'body'    => $story->body,
+                'user_id' => $story->user_id,
             ]
-            ]);
+        ]);
     }
 }

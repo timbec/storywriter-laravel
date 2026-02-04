@@ -17,8 +17,10 @@ class StoryFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->sentence(),
-            'body' => fake()->paragraph()
+            'user_id' => \App\Models\User::factory(),
+            'name'    => fake()->sentence(),
+            'slug'    => fake()->slug(),
+            'body'    => fake()->paragraph(),
         ];
     }
 }
