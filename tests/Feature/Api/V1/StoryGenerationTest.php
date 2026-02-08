@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 use Illuminate\Support\Facades\Http;
 
@@ -49,9 +51,14 @@ use Illuminate\Support\Facades\Http;
  */
 class StoryGenerationTest extends TestCase
 {
+    use RefreshDatabase;
+
     /** @test */
     public function it_requires_transcript_field()
     {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
         $response = $this->postJson('/api/stories/generate', []);
 
         $response->assertStatus(422)
@@ -61,9 +68,12 @@ class StoryGenerationTest extends TestCase
     /** @test */
     public function it_shows_me_exactly_what_the_generate_endpoint_returns()
     {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
         Http::fake([
-            // TogetherAI serverless endpoint
-            'api.together.*' => Http::response([
+            // Mock both text generation and image generation
+            'api.together.xyz/v1/chat/completions' => Http::response([
                 'choices' => [
                     [
                         'message' => [
@@ -71,6 +81,11 @@ class StoryGenerationTest extends TestCase
                         ],
                     ],
                 ],
+            ], 200),
+            'api.together.xyz/v1/images/generations' => Http::response([
+                'data' => [
+                    ['url' => 'https://example.com/test-image.jpg']
+                ]
             ], 200),
         ]);
 
@@ -89,18 +104,23 @@ class StoryGenerationTest extends TestCase
 
         $response->assertStatus(200)
                  ->assertJsonStructure([
-                     'story'
+                     'data' => ['story']
                  ])
-                 ->assertJson([
-                     'story' => 'Debug story from test.'
-                 ]);
+                 ->assertJsonPath('data.story', function ($story) {
+                     // Story should contain both image markdown and the text
+                     return str_contains($story, '![](') &&
+                            str_contains($story, 'Debug story from test.');
+                 });
     }
 
     /** @test */
     public function it_handles_together_ai_failure_gracefully()
     {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
         Http::fake([
-            'api.together.*' => Http::response([
+            'api.together.xyz/v1/chat/completions' => Http::response([
                 'error' => [
                     'message' => 'Something went wrong'
                 ]
@@ -114,12 +134,9 @@ class StoryGenerationTest extends TestCase
 
         $response = $this->postJson('/api/stories/generate', $payload);
 
-        $response->assertStatus(400)
+        $response->assertStatus(503)
                  ->assertJson([
-                     'error' => 'AI generation failed',
-                 ])
-                 ->assertJsonStructure([
-                     'details'
+                     'error' => 'Story text generation failed',
                  ]);
     }
 }

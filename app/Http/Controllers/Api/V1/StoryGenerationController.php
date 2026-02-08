@@ -126,16 +126,17 @@ public function generate(Request $request)
         // ---------------------------------------------------------
         // STEP 3: MERGE & SAVE
         // ---------------------------------------------------------
-        
-        // Inject the image at the top of the story text if we got one
-        if ($imageUrl) {
-            $storyText = "![]( $imageUrl )\n\n" . $storyText;
-        }
 
         // --- DATABASE SAVE ---
         try {
+            // Extract title BEFORE adding the image to avoid parsing the image URL as the title
             $title = strtok($storyText, "\n");
             $title = str_replace(['Title:', '"', '#', '*', '![]', '(', ')'], '', $title);
+
+            // Inject the image at the top of the story text if we got one
+            if ($imageUrl) {
+                $storyText = "![]( $imageUrl )\n\n" . $storyText;
+            }
 
             $storyEntry = Story::create([
                 'user_id' => auth()->id() ?? 1,
