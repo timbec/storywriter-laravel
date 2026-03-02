@@ -186,6 +186,8 @@ jobs:
           echo "DB_PASSWORD=${DB_PASSWORD}" >> .env
           echo "AWS_SSM_ENABLED=true" >> .env
           echo "AWS_DEFAULT_REGION=us-east-1" >> .env
+          echo "POSTHOG_API_KEY=${{ vars.POSTHOG_API_KEY }}" >> .env
+          echo "POSTHOG_HOST=${{ vars.POSTHOG_HOST || 'https://us.i.posthog.com' }}" >> .env
 
           cat >> .env << 'ENVEOF'
 

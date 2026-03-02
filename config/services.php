@@ -71,4 +71,19 @@ return [
         'api_key' => env('TOGETHER_API_KEY'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | PostHog Product Analytics
+    |--------------------------------------------------------------------------
+    |
+    | API key and host for PostHog event tracking. In staging/production,
+    | loaded from AWS SSM Parameter Store. Falls back to .env for local dev.
+    |
+    */
+
+    'posthog' => [
+        'api_key' => env('POSTHOG_API_KEY'),
+        'host' => env('POSTHOG_HOST', 'https://us.i.posthog.com'),
+    ],
+
 ];

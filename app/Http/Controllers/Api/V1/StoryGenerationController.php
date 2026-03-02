@@ -8,6 +8,7 @@ use App\Services\PromptBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use PostHog\PostHog;
 
 class StoryGenerationController extends Controller
 {
@@ -20,6 +21,7 @@ class StoryGenerationController extends Controller
      */
     public function generate(Request $request)
     {
+        $startTime = microtime(true);
 
         // Log everything being sent
         \Log::info('=== INCOMING REQUEST ===');
@@ -32,6 +34,20 @@ class StoryGenerationController extends Controller
             'transcript' => 'required|string',
             'options' => 'nullable|array',
         ]);
+
+        $userId = (string) (auth()->id() ?? 1);
+
+        if (config('services.posthog.api_key')) {
+            PostHog::capture([
+                'distinctId' => $userId,
+                'event' => 'story_generation_requested',
+                'properties' => [
+                    'transcript_length' => strlen($validated['transcript']),
+                    'transcript_word_count' => str_word_count($validated['transcript']),
+                    'user_turns' => substr_count(strtolower($validated['transcript']), 'user:'),
+                ],
+            ]);
+        }
 
         // Build the prompt
         $prompt = $this->promptBuilder->buildStoryPrompt($validated['transcript']);
@@ -82,6 +98,18 @@ class StoryGenerationController extends Controller
 
         if (! $textResponse->successful()) {
             \Log::error('Text Generation Failed', ['body' => $textResponse->json()]);
+
+            if (config('services.posthog.api_key')) {
+                PostHog::capture([
+                    'distinctId' => $userId,
+                    'event' => 'story_generation_failed',
+                    'properties' => [
+                        'error_type' => 'text_generation',
+                        'http_status' => $textResponse->status(),
+                        'generation_time_ms' => round((microtime(true) - $startTime) * 1000),
+                    ],
+                ]);
+            }
 
             return response()->json(['error' => 'Story text generation failed'], 503);
         }
@@ -148,6 +176,18 @@ class StoryGenerationController extends Controller
 
         } catch (\Throwable $e) {
             \Log::error('DB SAVE ERROR: '.$e->getMessage());
+        }
+
+        if (config('services.posthog.api_key')) {
+            PostHog::capture([
+                'distinctId' => $userId,
+                'event' => 'story_generation_completed',
+                'properties' => [
+                    'generation_time_ms' => round((microtime(true) - $startTime) * 1000),
+                    'story_length' => strlen($storyText),
+                    'has_cover_image' => $imageUrl !== null,
+                ],
+            ]);
         }
 
         return response()->json([
