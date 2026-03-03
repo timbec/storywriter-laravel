@@ -103,13 +103,12 @@ class StoryGenerationTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'data' => ['story'],
+                'data' => ['title', 'pages', 'cover_image', 'story_id', 'page_count'],
             ])
-            ->assertJsonPath('data.story', function ($story) {
-                // Story should contain both image markdown and the text
-                return str_contains($story, '![](') &&
-                       str_contains($story, 'Debug story from test.');
-            });
+            ->assertJsonPath('data.cover_image', 'https://example.com/test-image.jpg')
+            ->assertJsonPath('data.page_count', 1)
+            ->assertJsonPath('data.pages.0.content', 'Debug story from test.')
+            ->assertJsonPath('data.pages.0.imageUrl', 'https://example.com/test-image.jpg');
     }
 
     /** @test */
