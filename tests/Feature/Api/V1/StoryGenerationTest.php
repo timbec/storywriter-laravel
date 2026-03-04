@@ -2,9 +2,10 @@
 
 namespace Tests\Feature\Api\V1;
 
-use Tests\TestCase;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
-
+use Tests\TestCase;
 
 /**
  * StoryGenerationTest
@@ -49,27 +50,40 @@ use Illuminate\Support\Facades\Http;
  */
 class StoryGenerationTest extends TestCase
 {
+    use RefreshDatabase;
+
     /** @test */
     public function it_requires_transcript_field()
     {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
         $response = $this->postJson('/api/stories/generate', []);
 
         $response->assertStatus(422)
-                 ->assertJsonValidationErrors(['transcript']);
+            ->assertJsonValidationErrors(['transcript']);
     }
 
     /** @test */
     public function it_shows_me_exactly_what_the_generate_endpoint_returns()
     {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
         Http::fake([
-            // TogetherAI serverless endpoint
-            'api.together.*' => Http::response([
+            // Mock both text generation and image generation
+            'api.together.xyz/v1/chat/completions' => Http::response([
                 'choices' => [
                     [
                         'message' => [
-                            'content' => 'Debug story from test.'
+                            'content' => 'Debug story from test.',
                         ],
                     ],
+                ],
+            ], 200),
+            'api.together.xyz/v1/images/generations' => Http::response([
+                'data' => [
+                    ['url' => 'https://example.com/test-image.jpg'],
                 ],
             ], 200),
         ]);
@@ -77,7 +91,7 @@ class StoryGenerationTest extends TestCase
         $payload = [
             'transcript' => 'The child wants a story about a dragon.',
             'options' => [
-                'maxTokens'   => 500,
+                'maxTokens' => 500,
                 'temperature' => 0.7,
             ],
         ];
@@ -88,38 +102,39 @@ class StoryGenerationTest extends TestCase
         $response->dump();
 
         $response->assertStatus(200)
-                 ->assertJsonStructure([
-                     'story'
-                 ])
-                 ->assertJson([
-                     'story' => 'Debug story from test.'
-                 ]);
+            ->assertJsonStructure([
+                'data' => ['title', 'pages', 'cover_image', 'story_id', 'page_count'],
+            ])
+            ->assertJsonPath('data.cover_image', 'https://example.com/test-image.jpg')
+            ->assertJsonPath('data.page_count', 1)
+            ->assertJsonPath('data.pages.0.content', 'Debug story from test.')
+            ->assertJsonPath('data.pages.0.imageUrl', 'https://example.com/test-image.jpg');
     }
 
     /** @test */
     public function it_handles_together_ai_failure_gracefully()
     {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
         Http::fake([
-            'api.together.*' => Http::response([
+            'api.together.xyz/v1/chat/completions' => Http::response([
                 'error' => [
-                    'message' => 'Something went wrong'
-                ]
+                    'message' => 'Something went wrong',
+                ],
             ], 400),
         ]);
 
         $payload = [
             'transcript' => 'Test transcript',
-            'options' => []
+            'options' => [],
         ];
 
         $response = $this->postJson('/api/stories/generate', $payload);
 
-        $response->assertStatus(400)
-                 ->assertJson([
-                     'error' => 'AI generation failed',
-                 ])
-                 ->assertJsonStructure([
-                     'details'
-                 ]);
+        $response->assertStatus(503)
+            ->assertJson([
+                'error' => 'Story text generation failed',
+            ]);
     }
 }

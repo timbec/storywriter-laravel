@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Services\PromptBuilder;
-use App\Http\Requests\StoreStoryRequest;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreStoryRequest;
 use App\Http\Requests\UpdateStoryRequest;
+use App\Http\Resources\StoryResource;
 use App\Models\Story;
 
 class StoryController extends Controller
@@ -15,40 +15,22 @@ class StoryController extends Controller
      */
     public function index()
     {
-        // return StoryResource::collection(Story::all());
-        return Story::all()->toResourceCollection(); 
-    }
-
-
-    public function sdkCredentials(Request $request)
-    {
-        // validate incoming data
-        $request->validate([
-            'agentId' => 'required|string'
-        ]);
-
-        // example return structure (must match what RN expects)
-        return response()->json([
-            'sessionId' => 'xyz123',
-            'apiKey'    => env('ELEVENLABS_API_KEY'),
-            'agentId'   => $request->agentId,
-            'expiresAt' => now()->addMinutes(15)->toISOString(),
-        ]);
+        return StoryResource::collection(auth()->user()->stories);
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Display the specified resource.
      */
-    public function create()
+    public function show(Story $story)
     {
-        //
+        return StoryResource::make($story);
     }
 
     /**
      * Store a newly created resource in storage.
      */
     public function store(StoreStoryRequest $request)
-{
+    {
         // 1. Get the validated data from the request
         $data = $request->validated();
 
@@ -66,15 +48,14 @@ class StoryController extends Controller
         return $story->toResource();
     }
 
-
     /**
      * Update the specified resource in storage.
      */
     public function update(UpdateStoryRequest $request, Story $story)
     {
-        $story->update($request->validated()); 
+        $story->update($request->validated());
 
-        return $story->toResource(); 
+        return $story->toResource();
     }
 
     /**
@@ -82,6 +63,8 @@ class StoryController extends Controller
      */
     public function destroy(Story $story)
     {
-        //
+        $story->delete();
+
+        return response()->json(null, 204);
     }
 }

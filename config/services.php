@@ -47,6 +47,14 @@ return [
 
     'elevenlabs' => [
         'api_key' => env('ELEVENLABS_API_KEY'),
+        'default_voice_id' => env('ELEVENLABS_DEFAULT_VOICE_ID', '56AoDkrOh6qfVPDXZ7Pt'),
+        'default_model' => env('ELEVENLABS_DEFAULT_MODEL', 'eleven_flash_v2_5'),
+        'timeout' => env('ELEVENLABS_TIMEOUT', 30),
+        'base_url' => 'https://api.elevenlabs.io/v1',
+
+        // Daily usage limits (characters per user per day)
+        'daily_limit_free' => env('ELEVENLABS_DAILY_LIMIT_FREE', 10000),
+        'daily_limit_paid' => env('ELEVENLABS_DAILY_LIMIT_PAID', 50000),
     ],
 
     /*
@@ -61,6 +69,21 @@ return [
 
     'together' => [
         'api_key' => env('TOGETHER_API_KEY'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | PostHog Product Analytics
+    |--------------------------------------------------------------------------
+    |
+    | API key and host for PostHog event tracking. In staging/production,
+    | loaded from AWS SSM Parameter Store. Falls back to .env for local dev.
+    |
+    */
+
+    'posthog' => [
+        'api_key' => env('POSTHOG_API_KEY'),
+        'host' => env('POSTHOG_HOST', 'https://us.i.posthog.com'),
     ],
 
 ];

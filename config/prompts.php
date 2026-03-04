@@ -38,13 +38,15 @@ Page 2
 *(Continue this exact pattern for all remaining pages)*',
 
         'user_template' => '**[Conversation]:**
-{conversation}',
-        
+{conversation}
+
+Conversation:',
+
         // Future variables you can add
         'defaults' => [
             'min_pages' => 3,
             'max_pages' => 10,
-            'sentences_per_page' => '5 or 6',
-        ]
-    ]
+            'sentences_per_page' => '4 or 5',
+        ],
+    ],
 ];

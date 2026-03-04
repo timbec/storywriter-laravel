@@ -1,0 +1,249 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class ElevenLabsUsage extends Model
+{
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'elevenlabs_usage';
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'user_id',
+        'service_type',
+        'character_count',
+        'voice_id',
+        'model_id',
+        'estimated_cost',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'character_count' => 'integer',
+        'estimated_cost' => 'decimal:4',
+    ];
+
+    /**
+     * Get the user that made the request.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Log a text-to-speech request with usage tracking.
+     *
+     * @param  string  $text  The text that was converted to speech
+     * @param  string  $voiceId  The ElevenLabs voice ID used
+     * @param  string  $modelId  The TTS model used
+     */
+    public static function logTtsRequest(string $text, string $voiceId, string $modelId): self
+    {
+        $characterCount = strlen($text);
+
+        // Cost per character based on model
+        // Source: https://elevenlabs.io/pricing
+        $costPerChar = match ($modelId) {
+            'eleven_multilingual_v2' => 0.000030,
+            'eleven_turbo_v2_5' => 0.000024,
+            'eleven_flash_v2_5' => 0.000024,
+            default => 0.000024, // Default to flash pricing
+        };
+
+        $estimatedCost = $characterCount * $costPerChar;
+
+        return self::create([
+            'user_id' => auth()->id(),
+            'service_type' => 'tts',
+            'character_count' => $characterCount,
+            'voice_id' => $voiceId,
+            'model_id' => $modelId,
+            'estimated_cost' => $estimatedCost,
+        ]);
+    }
+
+    /**
+     * Log a conversational AI request with usage tracking.
+     *
+     * @param  string  $message  The message sent to the conversation agent
+     * @param  string  $agentId  The ElevenLabs agent ID used
+     */
+    public static function logConversationRequest(string $message, string $agentId): self
+    {
+        $characterCount = strlen($message);
+
+        // Conversational AI uses similar pricing to TTS
+        // Using flash model pricing as baseline
+        $costPerChar = 0.000024;
+        $estimatedCost = $characterCount * $costPerChar;
+
+        return self::create([
+            'user_id' => auth()->id(),
+            'service_type' => 'conversation',
+            'character_count' => $characterCount,
+            'voice_id' => $agentId, // Store agent ID in voice_id field
+            'model_id' => 'conversation_agent',
+            'estimated_cost' => $estimatedCost,
+        ]);
+    }
+
+    /**
+     * Get total character count used by a user today.
+     *
+     * @param  int  $userId  The user ID to check
+     * @return int Total characters used today
+     */
+    public static function getTodayUsage(int $userId): int
+    {
+        return self::where('user_id', $userId)
+            ->whereDate('created_at', today())
+            ->sum('character_count');
+    }
+
+    /**
+     * Get the daily character limit for a user.
+     * Currently uses free tier limit for all users.
+     * In the future, this can check user's subscription tier.
+     *
+     * @param  int  $userId  The user ID to check
+     * @return int Daily character limit
+     */
+    public static function getDailyLimit(int $userId): int
+    {
+        // TODO: Check user's subscription tier when implemented
+        // For now, all users get the free tier limit
+        return config('services.elevenlabs.daily_limit_free');
+    }
+
+    /**
+     * Check if a user has exceeded their daily usage limit.
+     *
+     * @param  int  $userId  The user ID to check
+     * @param  int  $additionalChars  Additional characters the user wants to use
+     * @return bool True if limit would be exceeded
+     */
+    public static function wouldExceedLimit(int $userId, int $additionalChars): bool
+    {
+        $currentUsage = self::getTodayUsage($userId);
+        $limit = self::getDailyLimit($userId);
+
+        return ($currentUsage + $additionalChars) > $limit;
+    }
+
+    /**
+     * Get total TTS requests for a given time period.
+     *
+     * @param  string  $period  'today', 'week', 'month'
+     * @return int Total requests
+     */
+    public static function getTotalRequests(string $period = 'today'): int
+    {
+        $query = self::query();
+
+        return match ($period) {
+            'today' => $query->whereDate('created_at', today())->count(),
+            'week' => $query->where('created_at', '>=', now()->subDays(7))->count(),
+            'month' => $query->where('created_at', '>=', now()->subDays(30))->count(),
+            default => $query->whereDate('created_at', today())->count(),
+        };
+    }
+
+    /**
+     * Get total characters processed for a given time period.
+     *
+     * @param  string  $period  'today', 'week', 'month'
+     * @return int Total characters
+     */
+    public static function getTotalCharacters(string $period = 'today'): int
+    {
+        $query = self::query();
+
+        return match ($period) {
+            'today' => $query->whereDate('created_at', today())->sum('character_count'),
+            'week' => $query->where('created_at', '>=', now()->subDays(7))->sum('character_count'),
+            'month' => $query->where('created_at', '>=', now()->subDays(30))->sum('character_count'),
+            default => $query->whereDate('created_at', today())->sum('character_count'),
+        };
+    }
+
+    /**
+     * Get total estimated cost for a given time period.
+     *
+     * @param  string  $period  'today', 'week', 'month'
+     * @return float Total cost in USD
+     */
+    public static function getTotalCost(string $period = 'today'): float
+    {
+        $query = self::query();
+
+        $cost = match ($period) {
+            'today' => $query->whereDate('created_at', today())->sum('estimated_cost'),
+            'week' => $query->where('created_at', '>=', now()->subDays(7))->sum('estimated_cost'),
+            'month' => $query->where('created_at', '>=', now()->subDays(30))->sum('estimated_cost'),
+            default => $query->whereDate('created_at', today())->sum('estimated_cost'),
+        };
+
+        return (float) $cost;
+    }
+
+    /**
+     * Get top users by usage.
+     *
+     * @param  int  $limit  Number of top users to return
+     * @param  string  $period  'today', 'week', 'month'
+     */
+    public static function getTopUsers(int $limit = 10, string $period = 'month'): \Illuminate\Support\Collection
+    {
+        $query = self::with('user')
+            ->selectRaw('user_id, SUM(character_count) as total_characters, SUM(estimated_cost) as total_cost, COUNT(*) as request_count');
+
+        $query = match ($period) {
+            'today' => $query->whereDate('created_at', today()),
+            'week' => $query->where('created_at', '>=', now()->subDays(7)),
+            'month' => $query->where('created_at', '>=', now()->subDays(30)),
+            default => $query->where('created_at', '>=', now()->subDays(30)),
+        };
+
+        return $query->groupBy('user_id')
+            ->orderByDesc('total_cost')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * Get cost breakdown by model.
+     *
+     * @param  string  $period  'today', 'week', 'month'
+     */
+    public static function getCostByModel(string $period = 'month'): \Illuminate\Support\Collection
+    {
+        $query = self::selectRaw('model_id, SUM(character_count) as total_characters, SUM(estimated_cost) as total_cost, COUNT(*) as request_count');
+
+        $query = match ($period) {
+            'today' => $query->whereDate('created_at', today()),
+            'week' => $query->where('created_at', '>=', now()->subDays(7)),
+            'month' => $query->where('created_at', '>=', now()->subDays(30)),
+            default => $query->where('created_at', '>=', now()->subDays(30)),
+        };
+
+        return $query->groupBy('model_id')
+            ->orderByDesc('total_cost')
+            ->get();
+    }
+}

@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\ElevenLabsUsage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-
 
 class ElevenLabsController extends Controller
 {
@@ -18,10 +18,16 @@ class ElevenLabsController extends Controller
     {
         \Log::info('🎯 sdkCredentials METHOD ENTERED');
 
-        try {
-            $request->validate([
-                'agentId' => 'required|string',
+        $apiKey = config('services.elevenlabs.api_key');
+        if (! $apiKey) {
+            Log::error('ElevenLabs API key not configured', [
+                'user_id' => $request->user()?->id,
             ]);
+
+            return response()->json([
+                'error' => 'ELEVENLABS_API_KEY is not configured',
+            ], 500);
+        }
 
             $apiKey = config('services.elevenlabs.api_key');
             if (!$apiKey) {
@@ -33,39 +39,20 @@ class ElevenLabsController extends Controller
                 ], 500);
             }
 
-            // Get signed URL from ElevenLabs
-            $response = Http::withHeaders([
-                'xi-api-key' => $apiKey,
-            ])->get('https://api.elevenlabs.io/v1/convai/conversation/get_signed_url', [
-                'agent_id' => $request->agentId,
-            ]);
+        if (! $response->successful()) {
+            $logLevel = $response->status() === 429 ? 'warning' : 'error';
+            $logMessage = $response->status() === 429
+                ? 'ElevenLabs rate limit exceeded on signed URL request'
+                : 'Failed to get ElevenLabs signed URL';
 
-            if (!$response->successful()) {
-                Log::error('Failed to get ElevenLabs signed URL', [
-                    'user_id' => $request->user()?->id,
-                    'agent_id' => $request->agentId,
-                    'status' => $response->status(),
-                    'response' => $response->json(),
-                ]);
-                return response()->json([
-                    'error' => 'Failed to get signed URL from ElevenLabs',
-                    'details' => $response->json(),
-                ], $response->status());
-            }
-
-            Log::info('ElevenLabs signed URL generated', [
+            Log::log($logLevel, $logMessage, [
                 'user_id' => $request->user()?->id,
                 'agent_id' => $request->agentId,
+                'status' => $response->status(),
+                'response' => $response->json(),
+                'rate_limited' => $response->status() === 429,
             ]);
 
-            return response()->json($response->json());
-
-        } catch (\Exception $e) {
-            Log::error('ElevenLabs SDK Credentials Exception', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
             return response()->json([
                 'error' => 'Exception calling ElevenLabs API',
                 'message' => $e->getMessage()
@@ -87,12 +74,12 @@ class ElevenLabsController extends Controller
 
         // Validate session
         $session = Cache::get("elevenlabs_session:{$request->sessionId}");
-        if (!$session || $session['agent_id'] !== $request->agentId) {
+        if (! $session || $session['agent_id'] !== $request->agentId) {
             return response()->json(['error' => 'Invalid or expired session'], 401);
         }
 
         $apiKey = config('services.elevenlabs.api_key');
-        if (!$apiKey) {
+        if (! $apiKey) {
             return response()->json(['error' => 'ELEVENLABS_API_KEY is not configured'], 500);
         }
 
@@ -102,7 +89,7 @@ class ElevenLabsController extends Controller
                 $response = Http::withHeaders([
                     'xi-api-key' => $apiKey,
                     'Content-Type' => 'application/json',
-                ])->post("https://api.elevenlabs.io/v1/convai/conversation", [
+                ])->post('https://api.elevenlabs.io/v1/convai/conversation', [
                     'agent_id' => $request->agentId,
                 ]);
                 break;
@@ -114,6 +101,14 @@ class ElevenLabsController extends Controller
                 ])->post("https://api.elevenlabs.io/v1/convai/conversation/{$request->sessionId}/message", [
                     'message' => $request->message,
                 ]);
+
+                // Log usage for conversation messages
+                if ($response->successful() && $request->message) {
+                    ElevenLabsUsage::logConversationRequest(
+                        message: $request->message,
+                        agentId: $request->agentId
+                    );
+                }
                 break;
 
             case 'end':
@@ -127,10 +122,22 @@ class ElevenLabsController extends Controller
                 return response()->json(['error' => 'Invalid action'], 400);
         }
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
+            // Log rate limit events from ElevenLabs
+            if ($response->status() === 429) {
+                Log::warning('ElevenLabs rate limit exceeded on conversation request', [
+                    'user_id' => $request->user()?->id,
+                    'agent_id' => $request->agentId,
+                    'action' => $request->action,
+                    'session_id' => $request->sessionId,
+                    'status' => 429,
+                    'response' => $response->json(),
+                ]);
+            }
+
             return response()->json([
                 'error' => 'ElevenLabs API request failed',
-                'details' => $response->json()
+                'details' => $response->json(),
             ], $response->status());
         }
 
@@ -142,6 +149,8 @@ class ElevenLabsController extends Controller
      */
     public function textToSpeech(Request $request)
     {
+        $startTime = microtime(true);
+
         $request->validate([
             'text' => 'required|string|max:5000',
             'voiceId' => 'required|string',
@@ -149,25 +158,117 @@ class ElevenLabsController extends Controller
         ]);
 
         $apiKey = config('services.elevenlabs.api_key');
-        if (!$apiKey) {
+        if (! $apiKey) {
             return response()->json(['error' => 'ELEVENLABS_API_KEY missing'], 500);
         }
 
-        $response = Http::withHeaders([
-            'xi-api-key' => $apiKey,
-            'Accept'     => 'audio/mpeg',
-        ])->post("https://api.elevenlabs.io/v1/text-to-speech/{$request->voiceId}", [
-            'text' => $request->text,
-            'model_id' => $request->options['model_id'] ?? 'eleven_multilingual_v2',
-            'voice_settings' => $request->options['voice_settings'] ?? [],
+        // Check daily usage limit
+        $userId = auth()->id();
+        $textLength = strlen($request->text);
+        $modelId = $request->options['model_id'] ?? config('services.elevenlabs.default_model');
+
+        // Log TTS request initiation
+        Log::info('ElevenLabs TTS request started', [
+            'user_id' => $userId,
+            'text_length' => $textLength,
+            'voice_id' => $request->voiceId,
+            'model_id' => $modelId,
+            'has_voice_settings' => isset($request->options['voice_settings']),
         ]);
 
-        if (!$response->successful()) {
+        if (ElevenLabsUsage::wouldExceedLimit($userId, $textLength)) {
+            $currentUsage = ElevenLabsUsage::getTodayUsage($userId);
+            $limit = ElevenLabsUsage::getDailyLimit($userId);
+
+            Log::warning('User exceeded daily TTS limit', [
+                'user_id' => $userId,
+                'current_usage' => $currentUsage,
+                'limit' => $limit,
+                'requested_chars' => $textLength,
+            ]);
+
+            return response()->json([
+                'error' => 'Daily narration limit reached. Please try again tomorrow.',
+                'limit_info' => [
+                    'characters_used' => $currentUsage,
+                    'daily_limit' => $limit,
+                    'requested_characters' => $textLength,
+                ],
+            ], 429);
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'xi-api-key' => $apiKey,
+                'Accept' => 'audio/mpeg',
+            ])->post("https://api.elevenlabs.io/v1/text-to-speech/{$request->voiceId}", [
+                'text' => $request->text,
+                'model_id' => $modelId,
+                'voice_settings' => $request->options['voice_settings'] ?? [],
+            ]);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            $responseTime = round((microtime(true) - $startTime) * 1000, 2);
+
+            Log::error('ElevenLabs TTS connection error', [
+                'user_id' => $userId,
+                'text_length' => $textLength,
+                'voice_id' => $request->voiceId,
+                'model_id' => $modelId,
+                'response_time_ms' => $responseTime,
+                'error_message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'error' => 'TTS request failed due to connection error',
+                'details' => [
+                    'message' => 'Unable to connect to ElevenLabs service',
+                ],
+            ], 500);
+        }
+
+        $responseTime = round((microtime(true) - $startTime) * 1000, 2); // milliseconds
+
+        if (! $response->successful()) {
+            $logLevel = $response->status() === 429 ? 'warning' : 'error';
+            $logMessage = $response->status() === 429
+                ? 'ElevenLabs rate limit exceeded on TTS request'
+                : 'ElevenLabs TTS request failed';
+
+            Log::log($logLevel, $logMessage, [
+                'user_id' => $userId,
+                'text_length' => $textLength,
+                'voice_id' => $request->voiceId,
+                'model_id' => $modelId,
+                'status_code' => $response->status(),
+                'response_time_ms' => $responseTime,
+                'error_details' => $response->json(),
+                'rate_limited' => $response->status() === 429,
+            ]);
+
             return response()->json([
                 'error' => 'TTS request failed',
-                'details' => $response->json()
+                'details' => $response->json(),
             ], $response->status());
         }
+
+        // Log successful TTS request for usage tracking
+        ElevenLabsUsage::logTtsRequest(
+            text: $request->text,
+            voiceId: $request->voiceId,
+            modelId: $modelId
+        );
+
+        $audioSize = strlen($response->body());
+
+        Log::info('ElevenLabs TTS request successful', [
+            'user_id' => $userId,
+            'text_length' => $textLength,
+            'voice_id' => $request->voiceId,
+            'model_id' => $modelId,
+            'response_time_ms' => $responseTime,
+            'audio_size_bytes' => $audioSize,
+            'success' => true,
+        ]);
 
         return response($response->body(), 200)
             ->header('Content-Type', 'audio/mpeg');
@@ -179,7 +280,7 @@ class ElevenLabsController extends Controller
     public function voices()
     {
         $apiKey = config('services.elevenlabs.api_key');
-        if (!$apiKey) {
+        if (! $apiKey) {
             return response()->json(['error' => 'ELEVENLABS_API_KEY missing'], 500);
         }
 
@@ -188,10 +289,19 @@ class ElevenLabsController extends Controller
             'Accept' => 'application/json',
         ])->get('https://api.elevenlabs.io/v1/voices');
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
+            // Log rate limit events from ElevenLabs
+            if ($response->status() === 429) {
+                Log::warning('ElevenLabs rate limit exceeded on voices request', [
+                    'user_id' => auth()->id(),
+                    'status' => 429,
+                    'response' => $response->json(),
+                ]);
+            }
+
             return response()->json([
                 'error' => 'Failed to fetch voices',
-                'details' => $response->json()
+                'details' => $response->json(),
             ], $response->status());
         }
 

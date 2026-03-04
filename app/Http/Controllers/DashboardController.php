@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\User; 
+use App\Models\ElevenLabsUsage;
 use App\Models\Story;
+use App\Models\User;
 use App\Services\StoryAnalyticsService;
-
 
 class DashboardController extends Controller
 {
@@ -16,9 +15,9 @@ class DashboardController extends Controller
 
     public function index()
     {
-        
-       // Security Check
-        if (auth()->user()->email !== 'timothybenjaminbeckett@gmail.com') { 
+
+        // Security Check
+        if (! auth()->user()->isAdmin()) {
             abort(403, 'Access Denied: Admins Only');
         }
 
@@ -44,16 +43,16 @@ class DashboardController extends Controller
         // 3. Return View: Send the data to the dashboard page
         return view('dashboard', [
             'users' => $users,
-            'stories' => $stories, 
-            'quickStats' => $quickStats
+            'stories' => $stories,
+            'quickStats' => $quickStats,
         ]);
-        
+
     }
 
-     public function analytics()
+    public function analytics()
     {
         // Security Check
-        if (auth()->user()->email !== 'timothybenjaminbeckett@gmail.com') { 
+        if (! auth()->user()->isAdmin()) {
             abort(403, 'Access Denied: Admins Only');
         }
 
@@ -72,5 +71,38 @@ class DashboardController extends Controller
     public function show(Story $story)
     {
         return view('web.stories.show', compact('story'));
+    }
+
+    public function elevenLabsUsage()
+    {
+        // Security Check
+        if (! auth()->user()->isAdmin()) {
+            abort(403, 'Access Denied: Admins Only');
+        }
+
+        // Get usage statistics for different time periods
+        $data = [
+            'stats' => [
+                'today' => [
+                    'requests' => ElevenLabsUsage::getTotalRequests('today'),
+                    'characters' => ElevenLabsUsage::getTotalCharacters('today'),
+                    'cost' => ElevenLabsUsage::getTotalCost('today'),
+                ],
+                'week' => [
+                    'requests' => ElevenLabsUsage::getTotalRequests('week'),
+                    'characters' => ElevenLabsUsage::getTotalCharacters('week'),
+                    'cost' => ElevenLabsUsage::getTotalCost('week'),
+                ],
+                'month' => [
+                    'requests' => ElevenLabsUsage::getTotalRequests('month'),
+                    'characters' => ElevenLabsUsage::getTotalCharacters('month'),
+                    'cost' => ElevenLabsUsage::getTotalCost('month'),
+                ],
+            ],
+            'top_users' => ElevenLabsUsage::getTopUsers(10, 'month'),
+            'cost_by_model' => ElevenLabsUsage::getCostByModel('month'),
+        ];
+
+        return view('dashboard.elevenlabs-usage', compact('data'));
     }
 }

@@ -55,10 +55,10 @@ systemctl start postgresql
 # Create application database and user
 POSTGRES_PASSWORD=$(openssl rand -base64 32)
 sudo -u postgres psql << POSTGRES_SETUP
-CREATE DATABASE $DATABASE_NAME;
+CREATE DATABASE "$DATABASE_NAME";
 CREATE USER storywriter_app WITH ENCRYPTED PASSWORD '$POSTGRES_PASSWORD';
-GRANT ALL PRIVILEGES ON DATABASE $DATABASE_NAME TO storywriter_app;
-\c $DATABASE_NAME
+GRANT ALL PRIVILEGES ON DATABASE "$DATABASE_NAME" TO storywriter_app;
+\c "$DATABASE_NAME"
 GRANT ALL ON SCHEMA public TO storywriter_app;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO storywriter_app;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO storywriter_app;
@@ -154,17 +154,6 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 
-# Set up SSL certificate with Let's Encrypt
-echo "==> Setting up SSL certificate for $DOMAIN_NAME..."
-certbot --nginx \
-  -d $DOMAIN_NAME \
-  --non-interactive \
-  --agree-tos \
-  --email ${admin_email} \
-  --redirect
-
-echo "SSL certificate installed successfully"
-
 # Create deploy user for GitHub Actions
 useradd -m -s /bin/bash deploy || true
 usermod -aG www-data deploy
@@ -187,6 +176,18 @@ deploy ALL=(root) NOPASSWD: /usr/bin/chmod -R [0-9][0-9][0-9] /var/www/*/storage
 deploy ALL=(root) NOPASSWD: /usr/bin/chmod -R [0-9][0-9][0-9] /var/www/*/bootstrap/cache*
 SUDOERS_EOF
 chmod 440 /etc/sudoers.d/deploy
+
+# Set up SSL certificate with Let's Encrypt
+echo "==> Setting up SSL certificate for $DOMAIN_NAME..."
+certbot --nginx \
+  -d $DOMAIN_NAME \
+  --non-interactive \
+  --agree-tos \
+  --email ${admin_email} \
+  --redirect \
+  || echo "WARNING: Certbot failed - SSL can be configured manually later"
+
+echo "SSL certificate setup attempted"
 
 # Create storage directories that Laravel needs
 mkdir -p $APP_DIR/storage/app/public
