@@ -110,14 +110,13 @@ resource "aws_instance" "server" {
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
-    http_put_response_hop_limit = 1
+    http_put_response_hop_limit = 2
     instance_metadata_tags      = "enabled"
   }
 
   user_data = templatefile("${path.module}/user-data.sh", {
     domain_name              = var.domain_name
     app_name                 = var.app_name
-    github_repo              = var.github_repo
     database_name            = var.database_name
     deploy_branch            = var.deploy_branch
     admin_email              = var.admin_email

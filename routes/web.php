@@ -25,8 +25,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/stories/{story}', [DashboardController::class, 'show'])->name('dashboard.story');
 });
 
-
-//Heirloom Dashboard
+// Heirloom Dashboard (Tim's branch)
 Route::prefix('heirloom')
     ->name('heirloom.')
     ->middleware(['auth'])

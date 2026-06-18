@@ -47,6 +47,7 @@ return [
 
     'elevenlabs' => [
         'api_key' => env('ELEVENLABS_API_KEY'),
+        'agent_id' => env('ELEVENLABS_AGENT_ID'),
         'default_voice_id' => env('ELEVENLABS_DEFAULT_VOICE_ID', '56AoDkrOh6qfVPDXZ7Pt'),
         'default_model' => env('ELEVENLABS_DEFAULT_MODEL', 'eleven_flash_v2_5'),
         'timeout' => env('ELEVENLABS_TIMEOUT', 30),
@@ -69,10 +70,8 @@ return [
 
     'together' => [
         'api_key' => env('TOGETHER_API_KEY'),
-        // 'text_model' => env('TOGETHER_TEXT_MODEL', 'meta-llama/Llama-3.3-70B-Instruct-Turbo'),
-        // 'text_model' => env('TOGETHER_TEXT_MODEL', 'deepseek-ai/DeepSeek-V3.1'), 
-        'text_model' => env('MINIMAX_TEXT_MODEL', 'MiniMaxAI/MiniMax-M2.7'),
-        'image_model' => env('TOGETHER_IMAGE_MODEL', 'black-forest-labs/FLUX.1-schnell'),
+        'text_model' => env('TOGETHER_TEXT_MODEL', 'moonshotai/Kimi-K2.5'),
+        'image_model' => env('TOGETHER_IMAGE_MODEL', 'google/flash-image-3.1'),
         'image_width' => (int) env('TOGETHER_IMAGE_WIDTH', 1024),
         'image_height' => (int) env('TOGETHER_IMAGE_HEIGHT', 768),
         'image_steps' => (int) env('TOGETHER_IMAGE_STEPS', 4),
@@ -91,21 +90,28 @@ return [
     'posthog' => [
         'api_key' => env('POSTHOG_API_KEY'),
         'host' => env('POSTHOG_HOST', 'https://us.i.posthog.com'),
+
+        // Analytics is on in production automatically. Set POSTHOG_FORCE_ENABLE=true
+        // to also send events from local/staging for testing. Events are stamped
+        // with an `environment` property so dev traffic can be filtered out in the
+        // PostHog dashboard.
+        'enabled' => (bool) env('POSTHOG_API_KEY')
+            && (env('APP_ENV') === 'production'
+                || filter_var(env('POSTHOG_FORCE_ENABLE', false), FILTER_VALIDATE_BOOLEAN)),
     ],
 
-
-        /*
+    /*
     |--------------------------------------------------------------------------
-    | GROQ CONSOLE API
+    | Groq Console API
     |--------------------------------------------------------------------------
     |
-    | API key for Groq Console. 
-    | 
+    | API key for Groq Console. Used by Heirloom's NarrativeService for
+    | transcript-to-narrative synthesis (llama-3.3-70b-versatile).
     |
     */
+
     'groq' => [
         'key' => env('GROQ_API_KEY'),
     ],
-
 
 ];

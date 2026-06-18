@@ -1,9 +1,9 @@
 name: Deploy to Staging
 
 on:
-  push:
-    branches:
-      - develop
+  # push:
+  #   branches:
+  #     - develop
   workflow_dispatch:
 
 concurrency:
@@ -12,6 +12,7 @@ concurrency:
 
 env:
   APP_DIR: /var/www/storywriter-staging
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -29,10 +30,10 @@ jobs:
           extensions: curl, mbstring, xml, zip, pgsql, bcmath, intl
           coverage: none
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Get Composer cache directory
@@ -188,6 +189,8 @@ jobs:
           echo "AWS_DEFAULT_REGION=us-east-1" >> .env
           echo "POSTHOG_API_KEY=${{ vars.POSTHOG_API_KEY }}" >> .env
           echo "POSTHOG_HOST=${{ vars.POSTHOG_HOST || 'https://us.i.posthog.com' }}" >> .env
+          echo "TOGETHER_TEXT_MODEL=${{ vars.TOGETHER_TEXT_MODEL }}" >> .env
+          echo "TOGETHER_IMAGE_MODEL=${{ vars.TOGETHER_IMAGE_MODEL }}" >> .env
 
           cat >> .env << 'ENVEOF'
 

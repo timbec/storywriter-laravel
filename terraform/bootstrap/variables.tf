@@ -9,11 +9,5 @@ variable "aws_region" {
 variable "state_bucket_name" {
   description = "Name of the S3 bucket for Terraform state"
   type        = string
-  default     = "storywriter-terraform-state"
-}
-
-variable "dynamodb_table_name" {
-  description = "Name of the DynamoDB table for state locking"
-  type        = string
-  default     = "storywriter-terraform-locks"
+  default     = "storywriter-terraform-state-548846592016"
 }
