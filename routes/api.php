@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\Api\Auth\AuthController;
+// use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\V1\ElevenLabsController;
 use App\Http\Controllers\Api\V1\PageImageController;
@@ -17,7 +17,7 @@ Route::prefix('auth')->group(function () {
 });
 
 // Public Routes
-Route::post('/login', [AuthController::class, 'login']);
+// Route::post('/login', [AuthController::class, 'login']);
 
 // Protected Routes (The "Sealed Off" Area)
 Route::middleware('auth:sanctum')->group(function () {
@@ -33,6 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('stories/{story:id}/pages/{pageNumber}/image', [PageImageController::class, 'generate']);
 });
+
 
 Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::apiResource('/stories', StoryController::class);
